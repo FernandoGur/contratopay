@@ -1,0 +1,109 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+
+  /* Marca — azul vivo e caloroso (referência fintech / Azul) */
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dae6ff;
+  --color-brand-200: #bdd2ff;
+  --color-brand-300: #90b3ff;
+  --color-brand-400: #5d89fc;
+  --color-brand-500: #3a63f6;
+  --color-brand-600: #2347e8;
+  --color-brand-700: #1c35d4;
+  --color-brand-800: #1d2eab;
+  --color-brand-900: #1d2d87;
+  --color-brand-950: #161d52;
+
+  /* Neutros levemente azulados (não cinza morto) */
+  --color-ink-50: #f7f9fc;
+  --color-ink-100: #eef2f9;
+  --color-ink-200: #e3e9f3;
+  --color-ink-300: #ccd6e6;
+  --color-ink-400: #92a1bd;
+  --color-ink-500: #65748f;
+  --color-ink-600: #4a5670;
+  --color-ink-700: #343e54;
+  --color-ink-800: #1f2839;
+  --color-ink-900: #121a2b;
+
+  /* Positivo / atenção / negativo */
+  --color-pos-50: #e9faf1;
+  --color-pos-100: #c9f3dd;
+  --color-pos-500: #10b981;
+  --color-pos-600: #059669;
+  --color-pos-700: #047857;
+  --color-warn-50: #fff6e8;
+  --color-warn-500: #f59e0b;
+  --color-warn-700: #b45309;
+  --color-neg-50: #fdecec;
+  --color-neg-500: #ef4444;
+  --color-neg-700: #b91c1c;
+
+  /* Raios e sombras premium */
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
+
+  --shadow-card: 0 1px 2px rgba(18, 26, 43, 0.04), 0 4px 16px -4px rgba(18, 26, 43, 0.08);
+  --shadow-card-hover: 0 2px 4px rgba(18, 26, 43, 0.05), 0 12px 28px -8px rgba(29, 45, 135, 0.18);
+  --shadow-brand: 0 8px 24px -6px rgba(35, 71, 232, 0.45);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(58, 99, 246, 0.06), transparent 60%),
+      radial-gradient(900px 500px at -10% 10%, rgba(58, 99, 246, 0.05), transparent 55%),
+      var(--color-ink-50);
+    color: var(--color-ink-800);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    letter-spacing: -0.011em;
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+  /* Números financeiros: tabulares e com peso de display */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .num-display {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+  }
+}
+
+@layer utilities {
+  .card {
+    background: #fff;
+    border: 1px solid var(--color-ink-200);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-card);
+  }
+  .card-hover {
+    transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  }
+  .card-hover:hover {
+    box-shadow: var(--shadow-card-hover);
+    border-color: var(--color-brand-200);
+    transform: translateY(-2px);
+  }
+  /* Gradiente de marca para heros e destaques */
+  .bg-brand-gradient {
+    background:
+      radial-gradient(120% 140% at 100% 0%, #5d89fc 0%, transparent 45%),
+      linear-gradient(135deg, #2347e8 0%, #1c35d4 55%, #1d2eab 100%);
+  }
+}

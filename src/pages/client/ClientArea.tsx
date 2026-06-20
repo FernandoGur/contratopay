@@ -1,0 +1,1056 @@
+import { Fragment, useMemo, useRef, useState } from 'react'
+import { useParams } from 'react-router-dom'
+import {
+  getActivePixKey,
+  getContractCalc,
+  getDb,
+  logout,
+  submitReceipt,
+} from '@/lib/repo'
+import { useCurrentUser, useDb } from '@/lib/store'
+import { brl, num, parseMoney, pct } from '@/lib/format'
+import { formatDateBR, formatMonthBR } from '@/lib/dates'
+import { simulateAnticipateLast, simulateExtraPayment } from '@/lib/finance'
+import {
+  Badge,
+  Button,
+  Card,
+  INSTALLMENT_STATUS_LABEL,
+  INSTALLMENT_STATUS_TONE,
+  Input,
+  Notice,
+  PAYMENT_STATUS_LABEL,
+  Row,
+} from '@/components/ui'
+
+type ClientTab = 'inicio' | 'parcelas' | 'pagamentos' | 'simular' | 'previsao' | 'contrato'
+
+const CLIENT_TABS: { id: ClientTab; label: string }[] = [
+  { id: 'inicio', label: 'Início' },
+  { id: 'parcelas', label: 'Minhas parcelas' },
+  { id: 'pagamentos', label: 'Pagamentos' },
+  { id: 'simular', label: 'Pagar a mais' },
+  { id: 'previsao', label: 'Previsão' },
+  { id: 'contrato', label: 'Meu contrato' },
+]
+
+export function ClientArea() {
+  const user = useCurrentUser()
+  const params = useParams<{ id: string }>()
+  // Cliente logado vê o próprio contrato; admin pode abrir via link com :id.
+  const calc = useResolvedContract(params.id, user?.clientId)
+  const [tab, setTab] = useState<ClientTab>('inicio')
+
+  if (!calc) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-ink-500">
+        Contrato não encontrado.
+      </div>
+    )
+  }
+
+  const { contract, client, state } = calc
+  const pix = getActivePixKey(contract.id)
+
+  return (
+    <div className="min-h-screen">
+      {/* Cabeçalho */}
+      <header className="sticky top-0 z-20 border-b border-ink-200 bg-white/85 backdrop-blur-lg">
+        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3.5">
+          <div className="flex items-center gap-2.5">
+            <div className="bg-brand-gradient flex h-10 w-10 items-center justify-center rounded-xl font-display text-lg font-extrabold text-white shadow-[var(--shadow-brand)]">
+              R
+            </div>
+            <div>
+              <div className="font-display text-[15px] font-bold text-ink-900">{contract.title}</div>
+              <div className="text-xs text-ink-400">Olá, {client?.name}</div>
+            </div>
+          </div>
+          {user && (
+            <button onClick={logout} className="text-sm font-medium text-ink-500 hover:text-ink-800">
+              Sair
+            </button>
+          )}
+        </div>
+        {/* Abas roláveis */}
+        <div className="mx-auto max-w-2xl overflow-x-auto px-2">
+          <div className="flex gap-1 pb-1">
+            {CLIENT_TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`shrink-0 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
+                  tab === t.id
+                    ? 'bg-brand-50 text-brand-700'
+                    : 'text-ink-500 hover:text-ink-800'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-2xl space-y-5 px-4 py-6">
+        {tab === 'inicio' && (
+          <>
+            {contract.clientNotes && <Notice>{contract.clientNotes}</Notice>}
+            <PixBlock calc={calc} pix={pix} />
+            <SaldoBlock calc={calc} />
+            {state.nextInstallmentNumber && (
+              <Card className="card-hover flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-display font-bold text-ink-900">Quer reduzir suas parcelas?</div>
+                  <div className="text-sm text-ink-500">
+                    Pague um valor extra e diminua o saldo e as próximas parcelas.
+                  </div>
+                </div>
+                <Button onClick={() => setTab('simular')}>Simular</Button>
+              </Card>
+            )}
+          </>
+        )}
+
+        {tab === 'parcelas' && <ParcelasTab calc={calc} />}
+        {tab === 'pagamentos' && <PagamentosClientTab calc={calc} />}
+        {tab === 'simular' && <ExtraBlock calc={calc} />}
+        {tab === 'previsao' && <PrevisaoTab calc={calc} />}
+        {tab === 'contrato' && <ContratoTab calc={calc} pix={pix} />}
+
+        <p className="pb-10 pt-2 text-center text-xs text-ink-400">
+          Esta é uma simulação. Os valores futuros podem variar conforme o IPCA oficial
+          e eventuais ajustes no contrato.
+        </p>
+      </main>
+    </div>
+  )
+}
+
+/** Resolve o contrato do cliente (por param na URL ou pelo cliente logado). */
+function useResolvedContract(paramId: string | undefined, clientId?: string) {
+  const db = useDb()
+  return useMemo(() => {
+    void db
+    // Se não veio por param, pega o primeiro contrato do cliente logado.
+    const cid =
+      paramId ?? getDb().contracts.find((c) => c.clientId === clientId)?.id
+    return cid ? getContractCalc(cid) : null
+  }, [paramId, clientId, db])
+}
+
+// ---------------------------------------------------------------------------
+// Bloco principal — Pix
+// ---------------------------------------------------------------------------
+function PixBlock({
+  calc,
+  pix,
+}: {
+  calc: NonNullable<ReturnType<typeof getContractCalc>>
+  pix: ReturnType<typeof getActivePixKey>
+}) {
+  const { state, contract } = calc
+  const [copied, setCopied] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [sent, setSent] = useState(false)
+
+  function copy() {
+    if (!pix?.pixKey) return
+    navigator.clipboard?.writeText(pix.pixKey)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !state.nextInstallmentNumber) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      submitReceipt(contract.id, 'financiamento', state.nextInstallmentNumber!, String(reader.result))
+      setSent(true)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  if (!state.nextInstallmentNumber) {
+    return (
+      <Card className="bg-pos-50 ring-1 ring-pos-500/20">
+        <h2 className="font-display text-lg font-bold text-pos-700">Contrato quitado</h2>
+        <p className="mt-1 text-sm text-ink-600">Todas as parcelas foram pagas.</p>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="bg-brand-gradient relative overflow-hidden px-6 py-7 text-white">
+        <div className="text-sm font-medium text-brand-100">Valor a pagar agora</div>
+        <div className="num-display mt-1.5 text-5xl font-extrabold tracking-tight">
+          {brl(state.currentInstallmentValue)}
+        </div>
+        <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-sm text-white backdrop-blur">
+          Parcela {state.nextInstallmentNumber} · vence em {formatDateBR(state.nextInstallmentDueDate)}
+        </div>
+      </div>
+      <div className="space-y-4 p-5">
+        <div>
+          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-ink-500">
+            Chave Pix
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="tnum flex-1 truncate rounded-lg bg-ink-50 px-3 py-2.5 text-sm text-ink-900">
+              {pix?.pixKey || 'Aguardando chave do vendedor'}
+            </div>
+            <Button variant="secondary" onClick={copy} disabled={!pix?.pixKey}>
+              {copied ? 'Copiado!' : 'Copiar'}
+            </Button>
+          </div>
+          {pix && (
+            <p className="mt-1.5 text-xs text-ink-500">
+              {pix.receiverName} · {pix.bankName}
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-dashed border-ink-300 p-4 text-center">
+          <p className="text-sm text-ink-600">
+            Após o pagamento, envie o comprovante para conferência.
+          </p>
+          <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={onFile} />
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-2"
+            onClick={() => fileRef.current?.click()}
+          >
+            {sent ? 'Comprovante enviado ✓' : 'Enviar comprovante'}
+          </Button>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Bloco de saldo
+// ---------------------------------------------------------------------------
+function SaldoBlock({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
+  const { state } = calc
+  return (
+    <Card>
+      <h3 className="mb-2 text-base font-semibold text-ink-900">Saldo do contrato</h3>
+      <Row label="Saldo atual do contrato" value={brl(state.currentBalance)} strong />
+      <Row label="Total já pago" value={brl(state.totalPaid)} />
+      <Row label="Total previsto em aberto" value={brl(state.totalOpenProjected)} />
+      <Row
+        label="Próxima estimativa de correção"
+        value={state.nextCorrection ? formatDateBR(state.nextCorrection.date) : '—'}
+      />
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Aba: Pagar a mais (simulador com dois modos)
+// ---------------------------------------------------------------------------
+type SimMode = 'reduzir' | 'antecipar'
+
+function ExtraBlock({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
+  const [mode, setMode] = useState<SimMode>('reduzir')
+
+  if (!calc.state.nextInstallmentNumber) {
+    return (
+      <Card>
+        <p className="text-center text-sm text-ink-500">Contrato quitado — nada a pagar.</p>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => setMode('reduzir')}
+          className={`rounded-xl px-3 py-3 text-left text-sm font-semibold transition-all ${
+            mode === 'reduzir'
+              ? 'bg-brand-600 text-white shadow-[var(--shadow-brand)]'
+              : 'bg-white text-ink-600 ring-1 ring-ink-200'
+          }`}
+        >
+          Reduzir minhas parcelas
+          <span className={`mt-0.5 block text-xs font-normal ${mode === 'reduzir' ? 'text-brand-100' : 'text-ink-400'}`}>
+            pago um extra e as próximas caem
+          </span>
+        </button>
+        <button
+          onClick={() => setMode('antecipar')}
+          className={`rounded-xl px-3 py-3 text-left text-sm font-semibold transition-all ${
+            mode === 'antecipar'
+              ? 'bg-brand-600 text-white shadow-[var(--shadow-brand)]'
+              : 'bg-white text-ink-600 ring-1 ring-ink-200'
+          }`}
+        >
+          Quitar últimas parcelas
+          <span className={`mt-0.5 block text-xs font-normal ${mode === 'antecipar' ? 'text-brand-100' : 'text-ink-400'}`}>
+            com desconto do IPCA futuro
+          </span>
+        </button>
+      </div>
+
+      {mode === 'reduzir' ? <ReduzirSim calc={calc} /> : <AnteciparSim calc={calc} />}
+    </div>
+  )
+}
+
+function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
+  const [inputMode, setInputMode] = useState<'valor' | 'parcela'>('valor')
+  const [extraText, setExtraText] = useState('')
+  const [targetText, setTargetText] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  const saldo = calc.state.currentBalance
+  const vincendas = calc.state.financingRemaining
+  const currentParcela = vincendas > 0 ? saldo / vincendas : 0
+  const target = parseMoney(targetText)
+
+  // No modo "parcela", o extra é deduzido da parcela desejada.
+  const extra =
+    inputMode === 'valor'
+      ? parseMoney(extraText)
+      : target > 0 && target < currentParcela
+        ? Math.max(0, saldo - target * vincendas)
+        : 0
+
+  const sim = useMemo(
+    () => simulateExtraPayment(calc.contract, calc.scheduleOpts, extra),
+    [calc, extra],
+  )
+
+  // Sugestões de parcela "redonda" abaixo da atual.
+  const roundBase = Math.floor(currentParcela / 500) * 500
+  const roundTargets = [0, 1, 2, 3]
+    .map((i) => roundBase - i * 500)
+    .filter((v) => v > 0)
+
+  function copyExtra() {
+    navigator.clipboard?.writeText(sim.extra.toFixed(2))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <Card>
+      <h3 className="font-display text-base font-bold text-ink-900">
+        Pagamento extra para reduzir minhas parcelas
+      </h3>
+      <p className="mt-1 text-sm text-ink-500">
+        Um pagamento à parte, separado da sua parcela mensal. O valor vai direto para o saldo
+        devedor e recalcula as próximas parcelas (o prazo continua o mesmo).
+      </p>
+
+      {/* Sub-modo: por valor ou por parcela desejada */}
+      <div className="mt-4 inline-flex rounded-xl bg-ink-100 p-1 text-sm font-semibold">
+        <button
+          onClick={() => setInputMode('valor')}
+          className={`rounded-lg px-3 py-1.5 transition-colors ${inputMode === 'valor' ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500'}`}
+        >
+          Escolher o valor
+        </button>
+        <button
+          onClick={() => setInputMode('parcela')}
+          className={`rounded-lg px-3 py-1.5 transition-colors ${inputMode === 'parcela' ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500'}`}
+        >
+          Escolher a parcela
+        </button>
+      </div>
+
+      {inputMode === 'valor' ? (
+        <div className="mt-3">
+          <label className="mb-1.5 block text-sm font-medium text-ink-700">
+            Valor do pagamento extra
+          </label>
+          <Input
+            inputMode="decimal"
+            value={extraText}
+            onChange={(e) => setExtraText(e.target.value)}
+            placeholder="Ex.: 5.000,00"
+          />
+        </div>
+      ) : (
+        <div className="mt-3">
+          <label className="mb-1.5 block text-sm font-medium text-ink-700">
+            Quero que minha parcela fique em
+          </label>
+          <Input
+            inputMode="decimal"
+            value={targetText}
+            onChange={(e) => setTargetText(e.target.value)}
+            placeholder={`Ex.: ${num(roundBase)}`}
+          />
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {roundTargets.map((v) => (
+              <button
+                key={v}
+                onClick={() => setTargetText(num(v))}
+                className={`rounded-lg px-2.5 py-1 text-sm font-semibold transition-colors ${
+                  Math.abs(target - v) < 0.5
+                    ? 'bg-brand-600 text-white'
+                    : 'bg-ink-100 text-ink-600 hover:bg-ink-200'
+                }`}
+              >
+                {brl(v)}
+              </button>
+            ))}
+          </div>
+          {target > 0 && target < currentParcela && (
+            <div className="mt-3 rounded-xl bg-brand-50 px-4 py-3 ring-1 ring-brand-200">
+              <div className="text-sm text-brand-800">
+                Para a parcela ficar em{' '}
+                <b className="num-display">{brl(target)}</b>, pague um extra de
+              </div>
+              <div className="num-display mt-0.5 text-2xl font-extrabold text-brand-700">
+                {brl(extra)}
+              </div>
+            </div>
+          )}
+          {target > 0 && target >= currentParcela && (
+            <p className="mt-2 text-xs text-warn-700">
+              Escolha um valor menor que a parcela atual ({brl(currentParcela)}).
+            </p>
+          )}
+        </div>
+      )}
+
+      {extra > 0 && (
+        <div className="mt-4 space-y-3">
+          {/* Fluxo do saldo: antes -> abate extra -> depois */}
+          <div className="rounded-xl bg-ink-50 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+              Saldo devedor
+            </div>
+            <div className="mt-2 flex items-stretch gap-2">
+              <div className="flex-1 rounded-xl bg-white px-3 py-2.5 text-center ring-1 ring-ink-200">
+                <div className="text-[11px] text-ink-400">antes</div>
+                <div className="num-display text-base font-bold text-ink-800">{brl(sim.balanceBefore)}</div>
+              </div>
+              <div className="flex flex-col items-center justify-center px-1">
+                <span className="text-[10px] font-bold text-pos-700">− {brl(sim.extra)}</span>
+                <svg width="22" height="14" viewBox="0 0 22 14" fill="none" className="text-ink-300">
+                  <path d="M1 7h18m0 0-5-5m5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <div className="flex-1 rounded-xl bg-brand-50 px-3 py-2.5 text-center ring-1 ring-brand-200">
+                <div className="text-[11px] text-brand-700">depois</div>
+                <div className="num-display text-base font-bold text-brand-800">{brl(sim.balanceAfter)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-ink-50 p-3">
+              <div className="text-xs text-ink-500">Parcela atual</div>
+              <div className="num-display font-bold text-ink-900">{brl(sim.currentInstallmentEstimate)}</div>
+            </div>
+            <div className="rounded-xl bg-pos-50 p-3 ring-1 ring-pos-500/20">
+              <div className="text-xs text-pos-700">Nova parcela estimada</div>
+              <div className="num-display font-bold text-pos-600">{brl(sim.newInstallmentEstimate)}</div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-pos-500/20 bg-pos-50 p-4">
+            <Row label="Economia mensal estimada" value={brl(sim.monthlySavings)} />
+            <Row label="Você deixa de pagar (parcelas futuras)" value={brl(sim.totalSavingsWithIpca)} />
+            <div className="my-1.5 border-t border-pos-500/20" />
+            <Row label="Economia real (IPCA evitado)" value={brl(sim.netIpcaSavings)} strong />
+          </div>
+
+          <DiscountBreakdown sim={sim} />
+
+          <Button onClick={copyExtra} className="w-full">
+            {copied ? 'Valor copiado!' : `Gerar pagamento extra (${brl(sim.extra)})`}
+          </Button>
+
+          <p className="text-center text-xs text-ink-400">
+            Esta é uma simulação. Pague este valor extra à parte e envie o comprovante —
+            o vendedor aplicará a redução do saldo oficialmente.
+          </p>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+/** Mostra como o desconto de IPCA foi gerado, período a período, com saldo e parcela. */
+function DiscountBreakdown({ sim }: { sim: ReturnType<typeof simulateExtraPayment> }) {
+  const steps = sim.discountBreakdown.filter((s) => s.avoidedIpca > 0)
+  if (steps.length === 0) return null
+
+  return (
+    <div className="rounded-xl border border-ink-200 p-4">
+      <h4 className="font-display text-sm font-bold text-ink-900">Como esse desconto foi gerado</h4>
+      <p className="mt-0.5 text-xs text-ink-500">
+        Em cada reajuste de 12 meses, veja o saldo do período e como a parcela fica menor com o seu
+        pagamento.
+      </p>
+
+      <div className="mt-3 space-y-2.5">
+        {steps.map((s) => (
+          <div key={s.index} className="rounded-xl bg-ink-50 p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-ink-800">
+                {formatDateBR(s.date)} · {s.periodNumber}º período
+              </span>
+              <span className="rounded-full bg-warn-50 px-2 py-0.5 text-[10px] font-bold text-warn-700">
+                IPCA +{pct(s.ipca)}
+              </span>
+            </div>
+
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <div className="rounded-lg bg-white p-2 ring-1 ring-ink-200">
+                <div className="text-[10px] uppercase tracking-wide text-ink-400">Saldo do período</div>
+                <div className="num-display text-xs text-ink-500 line-through">{brl(s.balanceBase)}</div>
+                <div className="num-display text-sm font-bold text-ink-900">{brl(s.balanceWithExtra)}</div>
+              </div>
+              <div className="rounded-lg bg-white p-2 ring-1 ring-ink-200">
+                <div className="text-[10px] uppercase tracking-wide text-ink-400">Parcela do período</div>
+                <div className="num-display text-xs text-ink-500 line-through">{brl(s.installmentBase)}</div>
+                <div className="num-display text-sm font-bold text-pos-600">{brl(s.installmentWithExtra)}</div>
+              </div>
+            </div>
+
+            <div className="mt-2 flex items-center justify-between border-t border-ink-200 pt-2">
+              <span className="text-xs text-ink-500">IPCA evitado neste ano</span>
+              <span className="num-display text-sm font-bold text-pos-700">{brl(s.avoidedIpca)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between border-t border-ink-200 pt-2.5">
+        <span className="text-sm font-semibold text-ink-700">Total de IPCA evitado</span>
+        <span className="num-display text-base font-bold text-pos-700">{brl(sim.netIpcaSavings)}</span>
+      </div>
+    </div>
+  )
+}
+
+function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
+  const [count, setCount] = useState(1)
+  const sim = useMemo(
+    () => simulateAnticipateLast(calc.contract, calc.scheduleOpts, count),
+    [calc, count],
+  )
+  const [copied, setCopied] = useState(false)
+
+  // Dados para o mapa visual das parcelas do financiamento.
+  const finRows = calc.schedule.rows
+  const openFin = finRows.filter((r) => r.status !== 'paga')
+  const nextNum = openFin[0]?.number
+  const quitRows = openFin.slice(openFin.length - sim.count)
+  const quitSet = new Set(quitRows.map((r) => r.number))
+  const lastRow = quitRows[quitRows.length - 1]
+
+  function copyTotal() {
+    navigator.clipboard?.writeText(sim.payToday.toFixed(2))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <Card>
+      <h3 className="font-display text-base font-bold text-ink-900">
+        Quitar as últimas parcelas com desconto de IPCA
+      </h3>
+      <p className="mt-1 text-sm text-ink-500">
+        As últimas parcelas ainda vão receber vários reajustes. Quitando agora, você paga o valor de
+        hoje e economiza todo o IPCA que ainda não foi aplicado nelas. Isso encurta o seu contrato.
+      </p>
+
+      <div className="mt-4">
+        <label className="mb-1.5 block text-sm font-medium text-ink-700">
+          Quantas das últimas parcelas deseja quitar?
+        </label>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setCount((c) => Math.max(1, c - 1))}
+            className="h-11 w-11 shrink-0 rounded-xl bg-ink-100 text-xl font-bold text-ink-700 hover:bg-ink-200"
+          >
+            −
+          </button>
+          <div className="num-display flex-1 rounded-xl bg-ink-50 py-2.5 text-center text-2xl font-bold text-ink-900">
+            {sim.count}
+          </div>
+          <button
+            onClick={() => setCount((c) => Math.min(sim.maxCount, c + 1))}
+            className="h-11 w-11 shrink-0 rounded-xl bg-ink-100 text-xl font-bold text-ink-700 hover:bg-ink-200"
+          >
+            +
+          </button>
+        </div>
+        <div className="mt-1.5 text-xs text-ink-400">
+          Você tem {sim.maxCount} parcelas em aberto.
+        </div>
+      </div>
+
+      {/* Mapa visual das parcelas do financiamento */}
+      <div className="mt-5 rounded-2xl border border-ink-200 bg-ink-50/60 p-4">
+        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-ink-500">
+          <span className="inline-flex items-center gap-1.5">
+            <i className="h-3 w-3 rounded-[4px] bg-pos-100" /> paga
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <i className="h-3 w-3 rounded-[4px] bg-brand-500" /> próxima
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <i className="h-3 w-3 rounded-[4px] bg-ink-200" /> em aberto
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <i className="h-3 w-3 rounded-[4px] bg-pos-500" /> sendo quitada
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {finRows.map((r) => {
+            const isPaid = r.status === 'paga'
+            const isNext = r.number === nextNum
+            const isQuit = quitSet.has(r.number)
+            const cls = isQuit
+              ? 'bg-pos-500 text-white scale-110 shadow-sm'
+              : isNext
+                ? 'bg-brand-500 text-white'
+                : isPaid
+                  ? 'bg-pos-100 text-pos-700'
+                  : 'bg-ink-200 text-ink-400'
+            return (
+              <div
+                key={r.number}
+                title={`Parcela ${r.number} · ${brl(r.value)}`}
+                className={`flex h-7 w-7 items-center justify-center rounded-[6px] text-[10px] font-bold transition-all duration-200 ${cls}`}
+              >
+                {r.number}
+              </div>
+            )
+          })}
+        </div>
+        <div className="mt-3 text-center text-xs text-ink-500">
+          O fim do seu contrato vai de{' '}
+          <b className="text-ink-700">parcela {openFin[openFin.length - 1]?.number}</b> para{' '}
+          <b className="text-pos-700">
+            {sim.newLastInstallmentNumber ? `parcela ${sim.newLastInstallmentNumber}` : 'quitado'}
+          </b>
+          .
+        </div>
+      </div>
+
+      {/* Destaque da(s) parcela(s) sendo paga(s) */}
+      {lastRow && (
+        <div className="mt-4 flex items-center justify-between rounded-2xl bg-pos-50 p-4 ring-1 ring-pos-500/20">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-pos-700">
+              {sim.count === 1 ? 'Parcela que você quita' : `Parcelas ${quitRows[0].number} a ${lastRow.number}`}
+            </div>
+            <div className="num-display mt-0.5 text-lg font-bold text-ink-900">
+              {sim.count === 1 ? `Parcela ${lastRow.number}` : `${sim.count} parcelas`} ·{' '}
+              {formatDateBR(lastRow.dueDate)}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-ink-400 line-through">{brl(sim.futureValueWithIpca)}</div>
+            <div className="num-display text-xl font-extrabold text-pos-600">{brl(sim.payToday)}</div>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 space-y-3">
+        <div className="rounded-xl bg-ink-50 p-4">
+          <Row label="Valor cheio dessas parcelas no futuro (com IPCA)" value={brl(sim.futureValueWithIpca)} />
+          <Row label="Você paga hoje" value={brl(sim.payToday)} strong />
+        </div>
+
+        <div className="rounded-xl border border-pos-500/20 bg-pos-50 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-pos-700">
+            Desconto de IPCA (você economiza)
+          </div>
+          <div className="num-display mt-1 text-3xl font-extrabold text-pos-600">
+            {brl(sim.ipcaDiscount)}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-ink-50 p-3">
+            <div className="text-xs text-ink-500">Parcelas restantes</div>
+            <div className="num-display font-bold text-ink-900">
+              {calc.state.financingRemaining} → {sim.remainingAfter}
+            </div>
+          </div>
+          <div className="rounded-xl bg-brand-50 p-3 ring-1 ring-brand-200">
+            <div className="text-xs text-brand-700">Novo fim do contrato</div>
+            <div className="num-display font-bold text-brand-800">
+              {sim.newLastInstallmentDate ? formatDateBR(sim.newLastInstallmentDate) : 'quitado'}
+            </div>
+          </div>
+        </div>
+
+        <Button onClick={copyTotal} className="w-full">
+          {copied ? 'Total copiado!' : `Gerar total a pagar (${brl(sim.payToday)})`}
+        </Button>
+
+        <p className="text-center text-xs text-ink-400">
+          Esta é uma simulação. Para confirmar, pague o valor acima e envie o comprovante —
+          o vendedor dará baixa nas últimas parcelas.
+        </p>
+      </div>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Aba: Minhas parcelas (cronograma completo)
+// ---------------------------------------------------------------------------
+type Filter = 'todas' | 'pagas' | 'a_vencer'
+
+function ParcelasTab({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
+  const rows = [...calc.downRows, ...calc.schedule.rows]
+  const [filter, setFilter] = useState<Filter>('todas')
+  const paidCount = rows.filter((r) => r.status === 'paga').length
+  const openCount = rows.length - paidCount
+
+  const visible = rows.filter((r) =>
+    filter === 'todas'
+      ? true
+      : filter === 'pagas'
+        ? r.status === 'paga'
+        : r.status !== 'paga',
+  )
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <Card className="p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Pagas</div>
+          <div className="num-display mt-1 text-xl font-bold text-pos-600">{paidCount}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">A vencer</div>
+          <div className="num-display mt-1 text-xl font-bold text-ink-900">{openCount}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Total</div>
+          <div className="num-display mt-1 text-xl font-bold text-ink-900">{rows.length}</div>
+        </Card>
+      </div>
+
+      <div className="flex gap-1.5">
+        {(['todas', 'pagas', 'a_vencer'] as Filter[]).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+              filter === f ? 'bg-brand-600 text-white' : 'bg-white text-ink-500 ring-1 ring-ink-200'
+            }`}
+          >
+            {f === 'todas' ? 'Todas' : f === 'pagas' ? 'Pagas' : 'A vencer'}
+          </button>
+        ))}
+      </div>
+
+      <Card className="p-0">
+        <div className="divide-y divide-ink-100">
+          {visible.map((r) => (
+            <Fragment key={`${r.type}-${r.number}`}>
+              {/* Marcador de reajuste IPCA antes da parcela onde ele incide */}
+              {r.correction && (
+                <div className="flex items-center justify-between bg-warn-50 px-4 py-2">
+                  <span className="text-xs font-bold text-warn-700">
+                    Reajuste IPCA +{pct(r.correction.ipca)} · {formatDateBR(r.dueDate)}
+                  </span>
+                  <span className="num-display text-xs font-semibold text-warn-700">
+                    saldo corrigido: {brl(r.balanceBefore)}
+                  </span>
+                </div>
+              )}
+              <div className="px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-ink-800">
+                      Parcela {r.number}
+                      <span className="ml-1.5 font-normal text-ink-400">
+                        {r.type === 'entrada' ? '· entrada' : ''}
+                      </span>
+                    </div>
+                    <div className="text-xs text-ink-400">
+                      {formatDateBR(r.dueDate)}
+                      {r.amortization ? ' · com pagamento extra' : ''}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="num-display text-sm font-bold text-ink-900">{brl(r.value)}</span>
+                    <Badge tone={INSTALLMENT_STATUS_TONE[r.status]}>
+                      {INSTALLMENT_STATUS_LABEL[r.status]}
+                    </Badge>
+                  </div>
+                </div>
+                {r.type === 'financiamento' && (
+                  <div className="mt-1.5 flex items-center justify-between rounded-lg bg-ink-50 px-2.5 py-1">
+                    <span className="text-[11px] text-ink-400">Saldo devedor após esta parcela</span>
+                    <span className="num-display text-xs font-semibold text-ink-700">
+                      {brl(r.balanceAfter)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </Fragment>
+          ))}
+        </div>
+      </Card>
+      <p className="text-center text-xs text-ink-400">
+        O saldo devedor e as parcelas futuras são estimativas e podem mudar com a correção anual do IPCA.
+      </p>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Aba: Pagamentos (comprovantes e status)
+// ---------------------------------------------------------------------------
+function PagamentosClientTab({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
+  const payments = calc.payments
+  return (
+    <div className="space-y-4">
+      <Card>
+        <Row label="Total já pago" value={brl(calc.state.totalPaid)} strong />
+        <Row label="Pagamentos extras (amortizações)" value={brl(calc.state.totalAmortized)} />
+      </Card>
+      <Card className="p-0">
+        <div className="divide-y divide-ink-100">
+          {payments.map((p) => (
+            <div key={p.id} className="flex items-center justify-between px-4 py-3">
+              <div>
+                <div className="text-sm font-semibold text-ink-800">
+                  {p.installmentType === 'entrada' ? 'Entrada' : 'Parcela'} {p.installmentNumber}
+                </div>
+                <div className="text-xs text-ink-400">
+                  {formatDateBR(p.paymentDate)}
+                  {p.amortizationAmount > 0 ? ` · extra ${brl(p.amortizationAmount)}` : ''}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="num-display text-sm font-bold text-ink-900">{brl(p.amount)}</span>
+                <Badge tone={p.status === 'pago' ? 'pos' : p.status === 'comprovante_enviado' ? 'warn' : 'muted'}>
+                  {PAYMENT_STATUS_LABEL[p.status]}
+                </Badge>
+              </div>
+            </div>
+          ))}
+          {payments.length === 0 && (
+            <p className="py-10 text-center text-sm text-ink-400">
+              Nenhum pagamento registrado ainda.
+            </p>
+          )}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Aba: Previsão (estimativa de correção anual)
+// ---------------------------------------------------------------------------
+function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
+  const [, mm, dd] = calc.contract.financingStartDate.split('-')
+  const anniversary = `${dd}/${mm}`
+  const corrections = calc.schedule.corrections
+  const nextDate = (corrections.find((c) => !c.isOfficial) ?? corrections[0])?.date
+
+  return (
+    <div className="space-y-4">
+      <Notice>
+        O que é reajustado é o <b>saldo devedor</b> — a cada <b>12 meses</b>, no dia <b>{anniversary}</b>{' '}
+        (aniversário do contrato), o saldo recebe o IPCA e é redividido pelas parcelas que faltam.
+        A parcela sobe por consequência. São valores estimados ({pct(calc.contract.forecastAnnualIpca)} a.a.).
+      </Notice>
+
+      <SaldoDevedorChart calc={calc} />
+
+      <div className="px-1 pt-1">
+        <h3 className="font-display text-base font-bold text-ink-900">Reajustes do saldo devedor</h3>
+        <p className="text-sm text-ink-500">Veja o saldo de cada período recebendo a correção.</p>
+      </div>
+
+      {corrections.map((c) => {
+        const isNext = c.date === nextDate
+        const deltaBalance = c.balanceAfter - c.balanceBefore
+        return (
+          <Card key={c.index} className="card-hover overflow-hidden p-0">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <span className={`h-2.5 w-2.5 rounded-full ${isNext ? 'bg-brand-600' : 'bg-ink-300'}`} />
+                <div>
+                  <div className="font-display text-base font-bold text-ink-900">
+                    {formatDateBR(c.date)}
+                  </div>
+                  <div className="text-xs text-ink-400">
+                    {c.index}o reajuste{isNext ? ' · o próximo' : ''}
+                  </div>
+                </div>
+              </div>
+              <Badge tone="warn">{c.isOfficial ? 'IPCA' : 'IPCA estimado'} +{pct(c.ipca)}</Badge>
+            </div>
+
+            <div className="px-4 pb-1">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+                Saldo devedor que será reajustado
+              </div>
+              <div className="mt-2 flex items-stretch gap-2">
+                <div className="flex-1 rounded-xl bg-ink-50 px-3 py-2.5 text-center">
+                  <div className="text-[11px] text-ink-400">antes</div>
+                  <div className="num-display text-base font-bold text-ink-800">{brl(c.balanceBefore)}</div>
+                </div>
+                <div className="flex flex-col items-center justify-center px-1">
+                  <span className="text-[10px] font-bold text-warn-700">+{pct(c.ipca)}</span>
+                  <svg width="22" height="14" viewBox="0 0 22 14" fill="none" className="text-ink-300">
+                    <path d="M1 7h18m0 0-5-5m5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span className="text-[10px] font-medium text-warn-700">+{brl(deltaBalance)}</span>
+                </div>
+                <div className="flex-1 rounded-xl bg-brand-50 px-3 py-2.5 text-center ring-1 ring-brand-200">
+                  <div className="text-[11px] text-brand-700">depois</div>
+                  <div className="num-display text-base font-bold text-brand-800">{brl(c.balanceAfter)}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-2 bg-ink-50 px-4 py-3 text-sm text-ink-600">
+              Esse novo saldo é dividido pelas <b>{c.installmentsAffected} parcelas restantes</b> —
+              cada parcela passa de{' '}
+              <span className="num-display font-semibold text-ink-700">{brl(c.previousInstallment)}</span> para{' '}
+              <span className="num-display font-bold text-ink-900">{brl(c.newInstallment)}</span>.
+            </div>
+          </Card>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Gráfico (SVG) do saldo devedor caindo ao longo do contrato, com os reajustes marcados. */
+function SaldoDevedorChart({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
+  const rows = calc.schedule.rows
+  if (rows.length === 0) return null
+
+  const series = rows.map((r) => r.balanceBefore)
+  const maxV = Math.max(calc.contract.financedValue, ...series)
+  const n = series.length
+
+  const W = 340
+  const H = 158
+  const padX = 8
+  const padTop = 16
+  const padBot = 26
+  const xAt = (i: number) => padX + (i / (n - 1)) * (W - 2 * padX)
+  const yAt = (v: number) => padTop + (1 - v / maxV) * (H - padTop - padBot)
+
+  const line = series.map((v, i) => `${i ? 'L' : 'M'}${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(' ')
+  const area = `${line} L${xAt(n - 1).toFixed(1)},${H - padBot} L${xAt(0).toFixed(1)},${H - padBot} Z`
+
+  const marks = calc.schedule.corrections
+    .map((c) => {
+      const i = rows.findIndex((r) => r.number === c.fromInstallment)
+      return i >= 0 ? { i, c } : null
+    })
+    .filter((m): m is { i: number; c: (typeof calc.schedule.corrections)[number] } => m != null)
+
+  const kFmt = (v: number) => `${Math.round(v / 1000)} mil`
+
+  return (
+    <Card>
+      <h3 className="font-display text-base font-bold text-ink-900">
+        Seu saldo devedor ao longo do tempo
+      </h3>
+      <p className="mt-1 text-sm text-ink-500">
+        Cai a cada parcela paga. Nos pontos azuis, a cada 12 meses, recebe o reajuste do IPCA.
+      </p>
+      <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full" style={{ height: 175 }}>
+        <defs>
+          <linearGradient id="saldoFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3a63f6" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#3a63f6" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#saldoFill)" />
+        <path d={line} fill="none" stroke="#2347e8" strokeWidth="2" strokeLinejoin="round" />
+        {marks.map(({ i, c }) => (
+          <g key={c.index}>
+            <line x1={xAt(i)} y1={yAt(series[i])} x2={xAt(i)} y2={H - padBot} stroke="#cdd6e6" strokeWidth="1" strokeDasharray="2 2" />
+            <circle cx={xAt(i)} cy={yAt(series[i])} r="3.5" fill="#2347e8" stroke="#fff" strokeWidth="1.5" />
+            <text x={xAt(i)} y={yAt(series[i]) - 6} textAnchor="middle" className="fill-warn-700" style={{ fontSize: 8, fontWeight: 700 }}>
+              +{pct(c.ipca)}
+            </text>
+            <text x={xAt(i)} y={H - 14} textAnchor="middle" className="fill-ink-500" style={{ fontSize: 8 }}>
+              {formatMonthBR(c.date)}
+            </text>
+            <text x={xAt(i)} y={H - 4} textAnchor="middle" className="fill-ink-400" style={{ fontSize: 7.5 }}>
+              {kFmt(c.balanceBefore)}
+            </text>
+          </g>
+        ))}
+      </svg>
+      <div className="mt-1 flex justify-between text-xs text-ink-400">
+        <span>início {brl(calc.contract.financedValue)}</span>
+        <span>fim do contrato</span>
+      </div>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Aba: Meu contrato (resumo + dados)
+// ---------------------------------------------------------------------------
+function ContratoTab({
+  calc,
+  pix,
+}: {
+  calc: NonNullable<ReturnType<typeof getContractCalc>>
+  pix: ReturnType<typeof getActivePixKey>
+}) {
+  const { contract, state, client } = calc
+  return (
+    <div className="space-y-5">
+      <Card>
+        <h3 className="mb-2 font-display text-base font-bold text-ink-900">Resumo do contrato</h3>
+        <Row label="Valor total da compra" value={brl(contract.totalValue)} />
+        <Row label="Entrada" value={`${brl(contract.downPaymentValue)} em ${contract.downPaymentInstallments}x`} />
+        <Row label="Valor financiado" value={brl(contract.financedValue)} />
+        <Row label="Parcelas do financiamento" value={`${contract.financingInstallments}x`} />
+        <div className="my-2 border-t border-ink-100" />
+        <Row label="Total já pago" value={brl(state.totalPaid)} />
+        <Row label="Saldo atual do contrato" value={brl(state.currentBalance)} strong />
+        <Row
+          label="Próxima estimativa de correção"
+          value={state.nextCorrection ? formatDateBR(state.nextCorrection.date) : '—'}
+        />
+      </Card>
+
+      <Card>
+        <h3 className="mb-2 font-display text-base font-bold text-ink-900">Dados para pagamento</h3>
+        <Row label="Chave Pix" value={pix?.pixKey || '—'} />
+        <Row label="Recebedor" value={pix?.receiverName || '—'} />
+        <Row label="Banco" value={pix?.bankName || '—'} />
+      </Card>
+
+      {contract.clientNotes && (
+        <Card>
+          <h3 className="mb-2 font-display text-base font-bold text-ink-900">Avisos do vendedor</h3>
+          <p className="text-sm text-ink-600">{contract.clientNotes}</p>
+        </Card>
+      )}
+
+      <Card>
+        <h3 className="mb-2 font-display text-base font-bold text-ink-900">Meus dados</h3>
+        <Row label="Nome" value={client?.name} />
+        <Row label="CPF / CNPJ" value={client?.document} />
+        <Row label="Telefone" value={client?.phone || '—'} />
+        <Row label="E-mail" value={client?.email || '—'} />
+      </Card>
+    </div>
+  )
+}
