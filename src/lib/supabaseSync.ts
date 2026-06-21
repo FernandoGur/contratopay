@@ -92,12 +92,12 @@ export async function hydrate(): Promise<HydratedData> {
     (rows ?? []).map((r) => coerce(keysToCamel(r as Record<string, unknown>), NUMERIC[ent]))
 
   return {
-    clients: map(c.data, 'clients') as Client[],
-    contracts: map(ct.data, 'contracts') as Contract[],
-    payments: map(p.data, 'payments') as Payment[],
-    corrections: map(ip.data, 'corrections') as IpcaCorrection[],
-    pixKeys: map(px.data, 'pixKeys') as PixKey[],
-    auditLogs: map(au.data, 'auditLogs') as AuditLog[],
+    clients: map(c.data, 'clients') as unknown as Client[],
+    contracts: map(ct.data, 'contracts') as unknown as Contract[],
+    payments: map(p.data, 'payments') as unknown as Payment[],
+    corrections: map(ip.data, 'corrections') as unknown as IpcaCorrection[],
+    pixKeys: map(px.data, 'pixKeys') as unknown as PixKey[],
+    auditLogs: map(au.data, 'auditLogs') as unknown as AuditLog[],
   }
 }
 

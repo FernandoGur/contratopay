@@ -7,22 +7,30 @@ export function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault()
+    setError('')
+    setLoading(true)
     try {
-      login(email, password)
+      await login(email, password)
     } catch (err) {
       setError((err as Error).message)
+    } finally {
+      setLoading(false)
     }
   }
 
-  function quick(em: string, pw: string) {
+  async function quick(em: string, pw: string) {
     setError('')
+    setLoading(true)
     try {
-      login(em, pw)
+      await login(em, pw)
     } catch (err) {
       setError((err as Error).message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -57,8 +65,8 @@ export function Login() {
               />
             </Field>
             {error && <Notice tone="warn">{error}</Notice>}
-            <Button type="submit" className="w-full">
-              Entrar
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Entrando…' : 'Entrar'}
             </Button>
           </form>
 
