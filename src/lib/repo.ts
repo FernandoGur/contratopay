@@ -26,7 +26,7 @@ import type {
   User,
 } from './types'
 
-const DB_KEY = 'recebimentos.db.v1'
+const DB_KEY = 'recebimentos.db.v2'
 const USER_KEY = 'recebimentos.user.v1'
 
 // Credenciais simples para o modo local (no Supabase isto vira Auth real).

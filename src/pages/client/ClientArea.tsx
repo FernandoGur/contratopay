@@ -160,19 +160,6 @@ function useResolvedContract(paramId: string | undefined, clientId?: string) {
 // ---------------------------------------------------------------------------
 // Tela inicial — painel (dashboard) do cliente
 // ---------------------------------------------------------------------------
-function InfoDot({ label }: { label: string }) {
-  return (
-    <span
-      title={label}
-      aria-label={label}
-      role="img"
-      className="inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full bg-ink-200 text-[9px] font-bold text-ink-500"
-    >
-      i
-    </span>
-  )
-}
-
 function InicioDashboard({
   calc,
   pix,
@@ -244,7 +231,7 @@ function InicioDashboard({
       </Card>
 
       {/* Resumo financeiro */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard label="Saldo devedor atual" value={brl(state.currentBalance)} accent />
         <StatCard label="Total já pago" value={brl(state.totalPaid)} tone="pos" />
         <StatCard
@@ -252,19 +239,6 @@ function InicioDashboard({
           value={brl(state.currentInstallmentValue)}
           hint={state.nextInstallmentNumber ? `#${state.nextInstallmentNumber} · ${formatDateBR(state.nextInstallmentDueDate)}` : 'quitado'}
         />
-        {/* Total estimado até o fim — com selo de estimativa */}
-        <div className="card p-5">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[12.5px] font-medium text-ink-400">Total estimado até o fim</span>
-            <InfoDot label="Considera a projeção de correção pelo IPCA. Valor pode variar conforme o índice oficial." />
-          </div>
-          <div className="num-display mt-2 text-[1.55rem] font-semibold leading-none text-ink-900">
-            {brl(state.totalOpenProjected)}
-          </div>
-          <div className="mt-1.5 inline-flex items-center rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-500">
-            Estimativa
-          </div>
-        </div>
       </div>
 
       {/* Conteúdo principal em duas colunas */}

@@ -54,6 +54,7 @@ export function makeSeed(): Database {
     financedValue: 332500,
     financingInstallments: 60,
     financingStartDate: financingStart,
+    firstInstallmentDueDate: '2026-06-22', // 1ª parcela vence 22/06; demais no dia 15
     baseInstallmentValue: 5541.67,
     correctionType: 'ipca_anual',
     correctionBaseDate: '2026-06-15',
@@ -80,7 +81,8 @@ export function makeSeed(): Database {
     createdAt: now(),
   }
 
-  // Pagamentos já realizados: 12 parcelas de entrada + parcela 13 do financiamento.
+  // Pagamentos já realizados: apenas as 12 parcelas da entrada.
+  // A parcela 13 (1ª do financiamento) ainda está em aberto, vence 22/06.
   const payments: Payment[] = []
   const downValue = Math.round((17500 / 12) * 100) / 100
   for (let i = 1; i <= 12; i++) {
@@ -101,22 +103,6 @@ export function makeSeed(): Database {
       createdAt: now(),
     })
   }
-  payments.push({
-    id: 'pay-fin-13',
-    contractId: 'contract-1',
-    installmentType: 'financiamento',
-    installmentNumber: 13,
-    paymentDate: financingStart,
-    amount: 5541.67,
-    amortizationAmount: 0,
-    paymentType: 'pix',
-    pixKeyId: 'pix-1',
-    receiptUrl: null,
-    status: 'pago',
-    notes: 'Primeira parcela do financiamento.',
-    createdBy: 'user-admin',
-    createdAt: now(),
-  })
 
   return {
     users: [adminUser, clientUser],
