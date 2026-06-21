@@ -56,7 +56,7 @@ export function ClientArea() {
     <div className="min-h-screen">
       {/* Cabeçalho */}
       <header className="sticky top-0 z-20 border-b border-ink-200 bg-white/85 backdrop-blur-lg">
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3.5">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3.5">
           <div className="flex items-center gap-2.5">
             <div className="bg-brand-gradient flex h-10 w-10 items-center justify-center rounded-xl font-display text-lg font-extrabold text-white shadow-[var(--shadow-brand)]">
               R
@@ -73,7 +73,7 @@ export function ClientArea() {
           )}
         </div>
         {/* Abas roláveis */}
-        <div className="mx-auto max-w-2xl overflow-x-auto px-2">
+        <div className="mx-auto max-w-5xl overflow-x-auto px-2">
           <div className="flex gap-1 pb-1">
             {CLIENT_TABS.map((t) => (
               <button
@@ -92,33 +92,42 @@ export function ClientArea() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl space-y-5 px-4 py-6">
+      <main className="mx-auto max-w-5xl px-4 py-6">
         {tab === 'inicio' && (
-          <>
-            {contract.clientNotes && <Notice>{contract.clientNotes}</Notice>}
-            <PixBlock calc={calc} pix={pix} />
-            <SaldoBlock calc={calc} />
-            {state.nextInstallmentNumber && (
-              <Card className="card-hover flex items-center justify-between gap-3">
-                <div>
+          <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
+            <div className="space-y-5 lg:col-span-2">
+              {contract.clientNotes && <Notice>{contract.clientNotes}</Notice>}
+              <PixBlock calc={calc} pix={pix} />
+            </div>
+            <div className="space-y-5">
+              <SaldoBlock calc={calc} />
+              {state.nextInstallmentNumber && (
+                <Card className="card-hover">
                   <div className="font-display font-bold text-ink-900">Quer reduzir suas parcelas?</div>
-                  <div className="text-sm text-ink-500">
+                  <div className="mt-1 text-sm text-ink-500">
                     Pague um valor extra e diminua o saldo e as próximas parcelas.
                   </div>
-                </div>
-                <Button onClick={() => setTab('simular')}>Simular</Button>
-              </Card>
-            )}
-          </>
+                  <Button onClick={() => setTab('simular')} className="mt-3 w-full">
+                    Simular
+                  </Button>
+                </Card>
+              )}
+            </div>
+          </div>
         )}
 
-        {tab === 'parcelas' && <ParcelasTab calc={calc} />}
-        {tab === 'pagamentos' && <PagamentosClientTab calc={calc} />}
-        {tab === 'simular' && <ExtraBlock calc={calc} />}
-        {tab === 'previsao' && <PrevisaoTab calc={calc} />}
-        {tab === 'contrato' && <ContratoTab calc={calc} pix={pix} />}
+        {/* Telas de detalhe/formulário ficam numa largura confortável de leitura */}
+        {tab !== 'inicio' && (
+          <div className="mx-auto max-w-3xl">
+            {tab === 'parcelas' && <ParcelasTab calc={calc} />}
+            {tab === 'pagamentos' && <PagamentosClientTab calc={calc} />}
+            {tab === 'simular' && <ExtraBlock calc={calc} />}
+            {tab === 'previsao' && <PrevisaoTab calc={calc} />}
+            {tab === 'contrato' && <ContratoTab calc={calc} pix={pix} />}
+          </div>
+        )}
 
-        <p className="pb-10 pt-2 text-center text-xs text-ink-400">
+        <p className="mx-auto max-w-3xl pb-10 pt-6 text-center text-xs text-ink-400">
           Esta é uma simulação. Os valores futuros podem variar conforme o IPCA oficial
           e eventuais ajustes no contrato.
         </p>
