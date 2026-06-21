@@ -738,8 +738,8 @@ function DiscountBreakdown({ sim }: { sim: ReturnType<typeof simulateExtraPaymen
               <span className="text-sm font-semibold text-ink-800">
                 {formatDateBR(s.date)} · {s.periodNumber}º período
               </span>
-              <span className="rounded-full bg-warn-50 px-2 py-0.5 text-[10px] font-bold text-warn-700">
-                IPCA +{pct(s.ipca)}
+              <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">
+                IPCA est. ~{pct(s.ipca)}
               </span>
             </div>
 
