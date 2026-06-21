@@ -115,6 +115,7 @@ export function generateSchedule(
   let balance = contract.financedValue
   let installment = contract.financedValue / nFin // parcela base
   let remaining = nFin // parcelas vincendas (incluindo a corrente)
+  let sumExact = 0 // soma das parcelas em precisão total (p/ resíduo de arredondamento)
 
   // Próxima data de correção = data-base + frequência.
   let nextCorrectionDate = addMonths(contract.correctionBaseDate, freq)
@@ -160,15 +161,17 @@ export function generateSchedule(
 
     const balanceBefore = balance
     const value = installment
+    sumExact += value
 
     // 2) Abate a parcela do saldo.
     balance = balance - value
     remaining -= 1
 
     // 3) Amortização extra aplicada nesta parcela (recalcula as vincendas).
-    const extra = amortizations[number] ?? 0
-    if (extra > 0) {
-      balance = balance - extra
+    //    Invariante: nunca excede o saldo restante (não deixa o saldo negativo).
+    const extraAmort = Math.max(0, Math.min(amortizations[number] ?? 0, balance))
+    if (extraAmort > 0) {
+      balance = balance - extraAmort
       installment = remaining > 0 ? balance / remaining : 0
     }
 
@@ -185,8 +188,20 @@ export function generateSchedule(
       balanceAfter: round2(balance),
       status,
       correction: correctionForRow,
-      amortization: extra > 0 ? round2(extra) : undefined,
+      amortization: extraAmort > 0 ? round2(extraAmort) : undefined,
     })
+  }
+
+  // Política de arredondamento: a última parcela absorve o resíduo de centavos,
+  // garantindo que a soma das parcelas exibidas == round2(soma em precisão total).
+  // Ex.: financiamento base → parcelas 13–71 = R$ 5.541,67 e a 72 = R$ 5.541,47.
+  if (rows.length > 0) {
+    const sumDisplayed = rows.reduce((s, r) => s + r.value, 0)
+    const residual = round2(round2(sumExact) - sumDisplayed)
+    if (Math.abs(residual) >= 0.01) {
+      const last = rows[rows.length - 1]
+      last.value = round2(last.value + residual)
+    }
   }
 
   const totalProjected = round2(rows.reduce((s, r) => s + r.value, 0))
@@ -364,11 +379,17 @@ export interface ExtraPaymentSimulation {
 export function simulateExtraPayment(
   contract: ContractCalcInput,
   baseOpts: ScheduleOptions,
-  extra: number,
+  rawExtra: number,
 ): ExtraPaymentSimulation {
   const baseSchedule = generateSchedule(contract, baseOpts)
   const openFin = baseSchedule.rows.filter((r) => r.status !== 'paga')
   const target = openFin[0]
+
+  // Invariante: o pagamento extra nunca é negativo e nunca excede o saldo
+  // devedor (no máximo quita o contrato). Protege contra parcela/saldo negativos.
+  const extra = target
+    ? Math.max(0, Math.min(rawExtra, target.balanceBefore))
+    : Math.max(0, rawExtra)
 
   if (!target || extra <= 0) {
     const cur = target ? target.value : 0
