@@ -22,6 +22,7 @@ import {
   Row,
   StatCard,
 } from '@/components/ui'
+import { Logo } from '@/components/Logo'
 
 type ClientTab = 'inicio' | 'parcelas' | 'pagamentos' | 'simular' | 'previsao' | 'contrato'
 
@@ -64,13 +65,9 @@ export function ClientArea() {
       {/* Cabeçalho */}
       <header className="sticky top-0 z-20 border-b border-ink-200 bg-white/85 backdrop-blur-lg">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
-          {/* Marca ContratoPay (espaço preparado para o logo) */}
-          <div className="leading-tight">
-            <div className="font-display text-[16px] font-semibold tracking-[-0.03em] text-ink-900">
-              Contrato<span className="text-brand-600">Pay</span>
-            </div>
-            <div className="text-[11px] text-ink-400">Portal do seu contrato</div>
-          </div>
+          {/* Marca ContratoPay */}
+          <Logo subtitle="Portal do seu contrato" markClassName="h-9 w-9" />
+
           {/* Avatar do cliente + sair */}
           <div className="flex items-center gap-3">
             <div className="hidden text-right sm:block">
@@ -1158,9 +1155,8 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
           Seu contrato não tem juros
         </div>
         <p className="mt-1 text-sm text-brand-800/90">
-          A cada <b>12 meses</b> (todo dia {anniversary}), o valor é apenas <b>atualizado pela inflação
-          oficial (IPCA)</b> — para manter o valor real do que foi combinado, como no reajuste de um
-          aluguel. Os números abaixo são uma <b>estimativa</b> — a inflação real pode variar.
+          A cada <b>12 meses</b> (dia {anniversary}), o valor é apenas <b>atualizado pela inflação
+          oficial (IPCA)</b>.
         </p>
       </div>
 

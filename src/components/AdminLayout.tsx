@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { logout } from '@/lib/repo'
 import { useCurrentUser } from '@/lib/store'
+import { LogoMark, Wordmark } from '@/components/Logo'
 
 const NAV = [
   { to: '/admin', label: 'Painel', exact: true, icon: 'grid' },
@@ -24,14 +25,6 @@ function Icon({ name }: { name: string }) {
   )
 }
 
-/** Marca textual — "Contrato" em tinta + "Pay" em índigo (sem símbolo, por ora). */
-function Wordmark({ className = '' }: { className?: string }) {
-  return (
-    <span className={`font-display font-semibold tracking-[-0.03em] text-ink-900 ${className}`}>
-      Contrato<span className="text-brand-600">Pay</span>
-    </span>
-  )
-}
 
 function initialsOf(name?: string) {
   if (!name) return 'CP'
@@ -76,7 +69,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       {/* Sidebar desktop */}
       <aside className="hidden w-64 shrink-0 border-r border-ink-200 bg-white p-3.5 lg:flex lg:flex-col">
         <div className="flex items-center gap-2 px-2 py-1.5">
-          <Wordmark className="text-[15px]" />
+          <LogoMark className="h-8 w-8" />
+          <Wordmark size="sm" />
         </div>
 
         {/* Busca (⌘K) — afordância visual */}
@@ -111,7 +105,10 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
       {/* Topbar mobile */}
       <header className="flex items-center justify-between border-b border-ink-200 bg-white px-4 py-3 lg:hidden">
-        <Wordmark className="text-[15px]" />
+        <div className="flex items-center gap-2">
+          <LogoMark className="h-8 w-8" />
+          <Wordmark size="sm" />
+        </div>
         <button onClick={() => setOpen((v) => !v)} className="rounded-md p-2 text-ink-600 hover:bg-ink-100">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h18M3 6h18M3 18h18" /></svg>
         </button>

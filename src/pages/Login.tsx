@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { login } from '@/lib/repo'
 import { Button, Field, Input, Notice } from '@/components/ui'
+import { LogoMark, Wordmark } from '@/components/Logo'
 
 export function Login() {
   const [email, setEmail] = useState('')
@@ -28,11 +29,12 @@ export function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        <div className="mb-7 text-center">
-          <div className="font-display text-2xl font-semibold tracking-[-0.03em] text-ink-900">
-            Contrato<span className="text-brand-600">Pay</span>
+        <div className="mb-7 flex flex-col items-center text-center">
+          <LogoMark className="h-14 w-14" />
+          <div className="mt-3">
+            <Wordmark size="lg" />
           </div>
-          <p className="mt-1.5 text-sm text-ink-500">Gerencie seus contratos parcelados</p>
+          <p className="mt-1 text-sm text-ink-500">Gestão Inteligente de Contratos</p>
         </div>
 
         <div className="card p-6">
