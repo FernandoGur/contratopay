@@ -26,7 +26,7 @@ import type {
   User,
 } from './types'
 
-const DB_KEY = 'recebimentos.db.v1'
+const DB_KEY = 'recebimentos.db.v3'
 const USER_KEY = 'recebimentos.user.v1'
 
 // Credenciais simples para o modo local (no Supabase isto vira Auth real).
@@ -221,6 +221,13 @@ export function getContractCalc(contractId: string): ContractCalc | null {
     { paid: paidDown, today },
   )
   const state = computeContractState(contract, schedule, downRows)
+
+  // "Total já pago" reflete os valores REAIS dos pagamentos registrados
+  // (que podem diferir por centavos do valor planejado das parcelas).
+  const actualPaid = payments
+    .filter((p) => p.status === 'pago')
+    .reduce((s, p) => s + p.amount + p.amortizationAmount, 0)
+  state.totalPaid = Math.round((actualPaid + Number.EPSILON) * 100) / 100
 
   return {
     contract,

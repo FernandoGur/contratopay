@@ -54,6 +54,7 @@ export function makeSeed(): Database {
     financedValue: 332500,
     financingInstallments: 60,
     financingStartDate: financingStart,
+    firstInstallmentDueDate: '2026-06-22', // 1ª parcela vence 22/06; demais no dia 15
     baseInstallmentValue: 5541.67,
     correctionType: 'ipca_anual',
     correctionBaseDate: '2026-06-15',
@@ -80,43 +81,37 @@ export function makeSeed(): Database {
     createdAt: now(),
   }
 
-  // Pagamentos já realizados: 12 parcelas de entrada + parcela 13 do financiamento.
+  // Histórico real da entrada: 12 parcelas quitadas em 6 pagamentos (pares).
+  // A parcela 13 (1ª do financiamento) ainda está em aberto, vence 22/06.
   const payments: Payment[] = []
-  const downValue = Math.round((17500 / 12) * 100) / 100
-  for (let i = 1; i <= 12; i++) {
-    payments.push({
-      id: `pay-entrada-${i}`,
-      contractId: 'contract-1',
-      installmentType: 'entrada',
-      installmentNumber: i,
-      paymentDate: addMonths(downStart, i - 1),
-      amount: downValue,
-      amortizationAmount: 0,
-      paymentType: 'pix',
-      pixKeyId: 'pix-1',
-      receiptUrl: null,
-      status: 'pago',
-      notes: '',
-      createdBy: 'user-admin',
-      createdAt: now(),
+  const entradaPagamentos: { date: string; parcelas: [number, number]; valores: [number, number] }[] = [
+    { date: '2025-07-14', parcelas: [1, 2], valores: [1458.33, 1458.33] },
+    { date: '2025-08-30', parcelas: [3, 4], valores: [1458.33, 1458.33] },
+    { date: '2025-09-30', parcelas: [5, 6], valores: [1458.33, 1458.33] },
+    { date: '2025-10-29', parcelas: [7, 8], valores: [1458.33, 1458.33] },
+    { date: '2025-11-28', parcelas: [9, 10], valores: [1458.33, 1458.33] },
+    { date: '2026-01-30', parcelas: [11, 12], valores: [1458.17, 1458.16] },
+  ]
+  for (const pg of entradaPagamentos) {
+    pg.parcelas.forEach((num, idx) => {
+      payments.push({
+        id: `pay-entrada-${num}`,
+        contractId: 'contract-1',
+        installmentType: 'entrada',
+        installmentNumber: num,
+        paymentDate: pg.date,
+        amount: pg.valores[idx],
+        amortizationAmount: 0,
+        paymentType: 'pix',
+        pixKeyId: 'pix-1',
+        receiptUrl: null,
+        status: 'pago',
+        notes: `Pago junto com a parcela ${pg.parcelas[idx === 0 ? 1 : 0]}`,
+        createdBy: 'user-admin',
+        createdAt: now(),
+      })
     })
   }
-  payments.push({
-    id: 'pay-fin-13',
-    contractId: 'contract-1',
-    installmentType: 'financiamento',
-    installmentNumber: 13,
-    paymentDate: financingStart,
-    amount: 5541.67,
-    amortizationAmount: 0,
-    paymentType: 'pix',
-    pixKeyId: 'pix-1',
-    receiptUrl: null,
-    status: 'pago',
-    notes: 'Primeira parcela do financiamento.',
-    createdBy: 'user-admin',
-    createdAt: now(),
-  })
 
   return {
     users: [adminUser, clientUser],

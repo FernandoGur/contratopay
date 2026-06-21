@@ -24,9 +24,11 @@ export interface ContractCalcInput {
   financedValue: number // saldo financiado (ex.: 332500)
   financingInstallments: number // nº de parcelas do financiamento (ex.: 60)
   downPaymentInstallments: number // nº de parcelas da entrada (ex.: 12)
-  financingStartDate: ISODate // vencimento da 1ª parcela do financiamento (ex.: 2026-06-15)
+  financingStartDate: ISODate // cadência mensal das parcelas do financiamento (ex.: dia 15)
   correctionBaseDate: ISODate // data-base da correção (ex.: 2026-06-15)
   correctionFrequencyMonths: number // periodicidade (ex.: 12)
+  /** Vencimento específico da 1ª parcela, quando difere da cadência (opcional). */
+  firstInstallmentDueDate?: ISODate
 }
 
 /** Correção IPCA oficial já aplicada (índice real), por ordem de correção (1, 2, 3…). */
@@ -123,7 +125,11 @@ export function generateSchedule(
 
   for (let i = 0; i < nFin; i++) {
     const number = firstNumber + i
-    const dueDate = addMonths(contract.financingStartDate, i)
+    // 1ª parcela pode ter vencimento próprio; as demais seguem a cadência mensal.
+    const dueDate =
+      i === 0 && contract.firstInstallmentDueDate
+        ? contract.firstInstallmentDueDate
+        : addMonths(contract.financingStartDate, i)
 
     // 1) Correção anual, se vencer nesta data (ou antes dela).
     let correctionForRow: ScheduleRow['correction']

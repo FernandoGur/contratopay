@@ -50,6 +50,8 @@ export interface Contract {
   financedValue: number
   financingInstallments: number
   financingStartDate: ISODate
+  /** Vencimento específico da 1ª parcela, quando difere da cadência mensal (opcional). */
+  firstInstallmentDueDate?: ISODate
   baseInstallmentValue: number
   correctionType: 'ipca_anual'
   correctionBaseDate: ISODate

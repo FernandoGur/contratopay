@@ -28,14 +28,11 @@ export function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="bg-brand-gradient mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl font-display text-2xl font-extrabold text-white shadow-[var(--shadow-brand)]">
-            R
+        <div className="mb-7 text-center">
+          <div className="font-display text-2xl font-semibold tracking-[-0.03em] text-ink-900">
+            Contrato<span className="text-brand-600">Pay</span>
           </div>
-          <h1 className="font-display text-2xl font-bold text-ink-900">Recebimentos</h1>
-          <p className="mt-1 text-sm text-ink-500">
-            Controle de contratos parcelados
-          </p>
+          <p className="mt-1.5 text-sm text-ink-500">Gerencie seus contratos parcelados</p>
         </div>
 
         <div className="card p-6">
@@ -63,18 +60,20 @@ export function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 border-t border-ink-200 pt-4">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">
-              Acesso rápido para teste
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="secondary" size="sm" onClick={() => quick('admin@local', 'admin')}>
-                Vendedor
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => quick('cliente@local', 'cliente')}>
-                Cliente
-              </Button>
-            </div>
+          <div className="mt-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-ink-200" />
+            <span className="text-[11px] font-medium uppercase tracking-wide text-ink-400">
+              Acesso de teste
+            </span>
+            <div className="h-px flex-1 bg-ink-200" />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Button variant="secondary" size="sm" onClick={() => quick('admin@local', 'admin')}>
+              Vendedor
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => quick('cliente@local', 'cliente')}>
+              Cliente
+            </Button>
           </div>
         </div>
         <p className="mt-4 text-center text-xs text-ink-400">
