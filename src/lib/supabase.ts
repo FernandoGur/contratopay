@@ -15,3 +15,11 @@ export const isSupabaseConfigured = Boolean(url && anonKey)
 export const supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(url!, anonKey!)
   : null
+
+/**
+ * Interruptor do backend. O modo Supabase só liga com VITE_BACKEND=supabase
+ * E as chaves configuradas — assim a produção segue em modo local até ligarmos
+ * de propósito (sem risco de quebrar enquanto o schema/usuários não existem).
+ */
+export const useSupabase =
+  isSupabaseConfigured && import.meta.env.VITE_BACKEND === 'supabase'

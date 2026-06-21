@@ -2,35 +2,31 @@
 -- ContratoPay — Schema do Supabase (Postgres)
 --
 -- Cole TODO este arquivo no SQL Editor do Supabase e clique em RUN.
--- Segurança por e-mail (RLS): o admin (lista app_admins) vê tudo; cada cliente
--- só vê o contrato cujo e-mail do cliente é igual ao e-mail do login dele.
+-- IDs em TEXT (compatível com os IDs gerados pelo app). Valores monetários em
+-- numeric(14,2). Segurança por e-mail (RLS): o admin (app_admins) vê tudo; cada
+-- cliente só vê o contrato cujo e-mail do cliente é igual ao e-mail do login.
 -- ============================================================================
 
--- ----------------------------------------------------------------------------
--- Administradores (quem enxerga todos os contratos)
--- ----------------------------------------------------------------------------
+create extension if not exists pgcrypto;
+
+-- Administradores (quem enxerga todos os contratos) --------------------------
 create table if not exists app_admins (
   email text primary key
 );
 insert into app_admins (email) values ('fernandogutemberggomes@gmail.com')
   on conflict (email) do nothing;
 
--- e-mail do usuário logado (em minúsculas)
 create or replace function current_email() returns text
-language sql stable as $$
-  select lower(coalesce(auth.jwt() ->> 'email', ''));
-$$;
+language sql stable as $$ select lower(coalesce(auth.jwt() ->> 'email', '')); $$;
 
 create or replace function is_admin() returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from app_admins a where lower(a.email) = current_email());
 $$;
 
--- ----------------------------------------------------------------------------
--- Clientes
--- ----------------------------------------------------------------------------
+-- Clientes -------------------------------------------------------------------
 create table if not exists clients (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   name text not null,
   document text default '',
   phone text default '',
@@ -42,12 +38,10 @@ create table if not exists clients (
   updated_at timestamptz not null default now()
 );
 
--- ----------------------------------------------------------------------------
--- Contratos
--- ----------------------------------------------------------------------------
+-- Contratos ------------------------------------------------------------------
 create table if not exists contracts (
-  id uuid primary key default gen_random_uuid(),
-  client_id uuid not null references clients (id) on delete cascade,
+  id text primary key,
+  client_id text not null references clients (id) on delete cascade,
   title text not null,
   total_value numeric(14,2) not null,
   down_payment_value numeric(14,2) not null default 0,
@@ -56,6 +50,7 @@ create table if not exists contracts (
   financed_value numeric(14,2) not null,
   financing_installments int not null,
   financing_start_date date not null,
+  first_installment_due_date date,
   base_installment_value numeric(14,2) not null,
   correction_type text not null default 'ipca_anual',
   correction_base_date date not null,
@@ -68,19 +63,17 @@ create table if not exists contracts (
   updated_at timestamptz not null default now()
 );
 
--- ----------------------------------------------------------------------------
--- Pagamentos
--- ----------------------------------------------------------------------------
+-- Pagamentos -----------------------------------------------------------------
 create table if not exists payments (
-  id uuid primary key default gen_random_uuid(),
-  contract_id uuid not null references contracts (id) on delete cascade,
+  id text primary key,
+  contract_id text not null references contracts (id) on delete cascade,
   installment_type text not null,
   installment_number int not null,
   payment_date date not null,
   amount numeric(14,2) not null default 0,
   amortization_amount numeric(14,2) not null default 0,
   payment_type text not null default 'pix',
-  pix_key_id uuid,
+  pix_key_id text,
   receipt_url text,
   status text not null default 'em_aberto',
   notes text default '',
@@ -89,12 +82,10 @@ create table if not exists payments (
   unique (contract_id, installment_type, installment_number)
 );
 
--- ----------------------------------------------------------------------------
--- Correções IPCA oficiais
--- ----------------------------------------------------------------------------
+-- Correções IPCA oficiais ----------------------------------------------------
 create table if not exists ipca_corrections (
-  id uuid primary key default gen_random_uuid(),
-  contract_id uuid not null references contracts (id) on delete cascade,
+  id text primary key,
+  contract_id text not null references contracts (id) on delete cascade,
   index int not null,
   correction_date date not null,
   ipca_percentage numeric(8,6) not null,
@@ -103,12 +94,10 @@ create table if not exists ipca_corrections (
   unique (contract_id, index)
 );
 
--- ----------------------------------------------------------------------------
--- Chaves Pix (histórico)
--- ----------------------------------------------------------------------------
+-- Chaves Pix (histórico) -----------------------------------------------------
 create table if not exists pix_keys (
-  id uuid primary key default gen_random_uuid(),
-  contract_id uuid not null references contracts (id) on delete cascade,
+  id text primary key,
+  contract_id text not null references contracts (id) on delete cascade,
   pix_key text default '',
   receiver_name text default '',
   bank_name text default '',
@@ -118,13 +107,11 @@ create table if not exists pix_keys (
   created_at timestamptz not null default now()
 );
 
--- ----------------------------------------------------------------------------
--- Auditoria
--- ----------------------------------------------------------------------------
+-- Auditoria ------------------------------------------------------------------
 create table if not exists audit_logs (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   user_id text,
-  contract_id uuid references contracts (id) on delete set null,
+  contract_id text references contracts (id) on delete set null,
   action text not null,
   description text not null default '',
   created_at timestamptz not null default now()
@@ -146,13 +133,10 @@ alter table ipca_corrections enable row level security;
 alter table pix_keys enable row level security;
 alter table audit_logs enable row level security;
 
--- O usuário pode verificar se ELE é admin (lê só a própria linha).
 drop policy if exists app_admins_self on app_admins;
-create policy app_admins_self on app_admins for select
-  using (lower(email) = current_email());
+create policy app_admins_self on app_admins for select using (lower(email) = current_email());
 
--- o contrato pertence ao cliente logado?
-create or replace function owns_contract(c uuid) returns boolean
+create or replace function owns_contract(c text) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (
     select 1 from contracts ct
@@ -161,13 +145,11 @@ language sql stable security definer set search_path = public as $$
   );
 $$;
 
--- CLIENTS
 drop policy if exists clients_admin on clients;
 drop policy if exists clients_read on clients;
 create policy clients_admin on clients for all using (is_admin()) with check (is_admin());
 create policy clients_read on clients for select using (lower(email) = current_email());
 
--- CONTRACTS
 drop policy if exists contracts_admin on contracts;
 drop policy if exists contracts_read on contracts;
 create policy contracts_admin on contracts for all using (is_admin()) with check (is_admin());
@@ -175,7 +157,6 @@ create policy contracts_read on contracts for select using (
   client_id in (select id from clients where lower(email) = current_email())
 );
 
--- PAYMENTS (cliente lê os seus e pode inserir comprovante)
 drop policy if exists payments_admin on payments;
 drop policy if exists payments_read on payments;
 drop policy if exists payments_client_insert on payments;
@@ -184,28 +165,15 @@ create policy payments_read on payments for select using (owns_contract(contract
 create policy payments_client_insert on payments for insert
   with check (owns_contract(contract_id) and status = 'comprovante_enviado');
 
--- IPCA
 drop policy if exists ipca_admin on ipca_corrections;
 drop policy if exists ipca_read on ipca_corrections;
 create policy ipca_admin on ipca_corrections for all using (is_admin()) with check (is_admin());
 create policy ipca_read on ipca_corrections for select using (owns_contract(contract_id));
 
--- PIX
 drop policy if exists pix_admin on pix_keys;
 drop policy if exists pix_read on pix_keys;
 create policy pix_admin on pix_keys for all using (is_admin()) with check (is_admin());
 create policy pix_read on pix_keys for select using (owns_contract(contract_id));
 
--- AUDIT (somente admin)
 drop policy if exists audit_admin on audit_logs;
 create policy audit_admin on audit_logs for all using (is_admin()) with check (is_admin());
-
--- ============================================================================
--- Storage (comprovantes) — rode depois de criar o bucket "receipts" (privado)
--- ============================================================================
--- create policy "receipts admin" on storage.objects for all
---   using (bucket_id = 'receipts' and is_admin());
--- create policy "receipts auth upload" on storage.objects for insert
---   with check (bucket_id = 'receipts' and auth.role() = 'authenticated');
--- create policy "receipts auth read" on storage.objects for select
---   using (bucket_id = 'receipts' and auth.role() = 'authenticated');

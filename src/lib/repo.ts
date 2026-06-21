@@ -16,6 +16,8 @@ import {
 } from './finance'
 import { todayISO } from './dates'
 import { makeSeed } from './seed'
+import { supabase, useSupabase } from './supabase'
+import { hydrate, upsertRow } from './supabaseSync'
 import type {
   Client,
   Contract,
@@ -25,6 +27,8 @@ import type {
   PixKey,
   User,
 } from './types'
+
+type Entity = 'clients' | 'contracts' | 'payments' | 'corrections' | 'pixKeys' | 'auditLogs'
 
 const DB_KEY = 'recebimentos.db.v4'
 const USER_KEY = 'recebimentos.user.v1'
