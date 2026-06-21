@@ -18,7 +18,6 @@ import {
   INSTALLMENT_STATUS_LABEL,
   INSTALLMENT_STATUS_TONE,
   Input,
-  Notice,
   PAYMENT_STATUS_LABEL,
   Row,
   StatCard,
@@ -41,6 +40,7 @@ export function ClientArea() {
   // Cliente logado vê o próprio contrato; admin pode abrir via link com :id.
   const calc = useResolvedContract(params.id, user?.clientId)
   const [tab, setTab] = useState<ClientTab>('inicio')
+  const [simMode, setSimMode] = useState<'reduzir' | 'antecipar'>('reduzir')
 
   if (!calc) {
     return (
@@ -128,9 +128,17 @@ export function ClientArea() {
         {/* Telas de detalhe/formulário ficam numa largura confortável de leitura */}
         {tab !== 'inicio' && (
           <div className="mx-auto max-w-3xl">
-            {tab === 'parcelas' && <ParcelasTab calc={calc} />}
+            {tab === 'parcelas' && (
+              <ParcelasTab
+                calc={calc}
+                onQuitarUltima={() => {
+                  setSimMode('antecipar')
+                  setTab('simular')
+                }}
+              />
+            )}
             {tab === 'pagamentos' && <PagamentosClientTab calc={calc} />}
-            {tab === 'simular' && <ExtraBlock calc={calc} />}
+            {tab === 'simular' && <ExtraBlock calc={calc} initialMode={simMode} />}
             {tab === 'previsao' && <PrevisaoTab calc={calc} />}
             {tab === 'contrato' && <ContratoTab calc={calc} pix={pix} />}
           </div>
@@ -293,8 +301,8 @@ function InicioDashboard({
                         </span>
                       )}
                       {r.correction && (
-                        <span className="rounded-full bg-warn-50 px-1.5 py-0.5 text-[9px] font-bold text-warn-700">
-                          IPCA +{pct(r.correction.ipca)}
+                        <span className="rounded-full bg-brand-50 px-1.5 py-0.5 text-[9px] font-bold text-brand-700">
+                          inflação {pct(r.correction.ipca)}
                         </span>
                       )}
                     </div>
@@ -466,8 +474,14 @@ function PixBlock({
 // ---------------------------------------------------------------------------
 type SimMode = 'reduzir' | 'antecipar'
 
-function ExtraBlock({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
-  const [mode, setMode] = useState<SimMode>('reduzir')
+function ExtraBlock({
+  calc,
+  initialMode = 'reduzir',
+}: {
+  calc: NonNullable<ReturnType<typeof getContractCalc>>
+  initialMode?: SimMode
+}) {
+  const [mode, setMode] = useState<SimMode>(initialMode)
 
   if (!calc.state.nextInstallmentNumber) {
     return (
@@ -753,8 +767,9 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
   )
   const [copied, setCopied] = useState(false)
 
-  // Dados para o mapa visual das parcelas do financiamento.
+  // Dados para o mapa visual: TODAS as parcelas (entrada + financiamento).
   const finRows = calc.schedule.rows
+  const mapRows = [...calc.downRows, ...finRows]
   const openFin = finRows.filter((r) => r.status !== 'paga')
   const nextNum = openFin[0]?.number
   const quitRows = openFin.slice(openFin.length - sim.count)
@@ -803,7 +818,7 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
         </div>
       </div>
 
-      {/* Mapa visual das parcelas do financiamento */}
+      {/* Mapa visual de TODAS as parcelas (entrada + financiamento) */}
       <div className="mt-5 rounded-2xl border border-ink-200 bg-ink-50/60 p-4">
         <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-ink-500">
           <span className="inline-flex items-center gap-1.5">
@@ -820,7 +835,7 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
           </span>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {finRows.map((r) => {
+          {mapRows.map((r) => {
             const isPaid = r.status === 'paga'
             const isNext = r.number === nextNum
             const isQuit = quitSet.has(r.number)
@@ -833,8 +848,8 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
                   : 'bg-ink-200 text-ink-400'
             return (
               <div
-                key={r.number}
-                title={`Parcela ${r.number} · ${brl(r.value)}`}
+                key={`${r.type}-${r.number}`}
+                title={`${r.type === 'entrada' ? 'Entrada' : 'Parcela'} ${r.number} · ${brl(r.value)}`}
                 className={`flex h-7 w-7 items-center justify-center rounded-[6px] text-[10px] font-bold transition-all duration-200 ${cls}`}
               >
                 {r.number}
@@ -919,7 +934,13 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
 // ---------------------------------------------------------------------------
 type Filter = 'todas' | 'pagas' | 'a_vencer'
 
-function ParcelasTab({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
+function ParcelasTab({
+  calc,
+  onQuitarUltima,
+}: {
+  calc: NonNullable<ReturnType<typeof getContractCalc>>
+  onQuitarUltima: () => void
+}) {
   const rows = [...calc.downRows, ...calc.schedule.rows]
   const [filter, setFilter] = useState<Filter>('todas')
   const paidCount = rows.filter((r) => r.status === 'paga').length
@@ -933,8 +954,40 @@ function ParcelasTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
         : r.status !== 'paga',
   )
 
+  // Última parcela do financiamento + desconto de IPCA (antecipação de 1 parcela).
+  const openFin = calc.schedule.rows.filter((r) => r.status !== 'paga')
+  const lastInstallment = openFin[openFin.length - 1]
+  const lastSim = lastInstallment
+    ? simulateAnticipateLast(calc.contract, calc.scheduleOpts, 1)
+    : null
+
   return (
     <div className="space-y-4">
+      {/* Última parcela ativa — quitar com desconto de IPCA */}
+      {lastInstallment && lastSim && lastSim.ipcaDiscount > 0 && (
+        <Card className="card-hover overflow-hidden border-pos-500/30 bg-pos-50 p-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-pos-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                  Parcela {lastInstallment.number}
+                </span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-pos-700">
+                  Última parcela · pode antecipar
+                </span>
+              </div>
+              <p className="mt-1.5 text-sm text-ink-600">
+                Quite a última parcela por{' '}
+                <b className="num-display text-ink-900">{brl(lastSim.payToday)}</b>{' '}
+                <span className="text-ink-400 line-through">{brl(lastSim.futureValueWithIpca)}</span> —
+                economize <b className="text-pos-700">{brl(lastSim.ipcaDiscount)}</b> de inflação e encurte o contrato.
+              </p>
+            </div>
+            <Button onClick={onQuitarUltima}>Quitar com desconto</Button>
+          </div>
+        </Card>
+      )}
+
       <div className="grid grid-cols-3 gap-3">
         <Card className="p-4">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Pagas</div>
@@ -968,14 +1021,14 @@ function ParcelasTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
         <div className="divide-y divide-ink-100">
           {visible.map((r) => (
             <Fragment key={`${r.type}-${r.number}`}>
-              {/* Marcador de reajuste IPCA antes da parcela onde ele incide */}
+              {/* Marcador da atualização pela inflação (sem juros) */}
               {r.correction && (
-                <div className="flex items-center justify-between bg-warn-50 px-4 py-2">
-                  <span className="text-xs font-bold text-warn-700">
-                    Reajuste IPCA +{pct(r.correction.ipca)} · {formatDateBR(r.dueDate)}
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 bg-brand-50 px-4 py-2">
+                  <span className="text-xs font-semibold text-brand-800">
+                    Atualização pela inflação · IPCA {pct(r.correction.ipca)} · {formatDateBR(r.dueDate)}
                   </span>
-                  <span className="num-display text-xs font-semibold text-warn-700">
-                    saldo corrigido: {brl(r.balanceBefore)}
+                  <span className="num-display text-xs font-medium text-brand-700">
+                    saldo atualizado: {brl(r.balanceBefore)}
                   </span>
                 </div>
               )}
@@ -1074,17 +1127,23 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
 
   return (
     <div className="space-y-4">
-      <Notice>
-        O que é reajustado é o <b>saldo devedor</b> — a cada <b>12 meses</b>, no dia <b>{anniversary}</b>{' '}
-        (aniversário do contrato), o saldo recebe o IPCA e é redividido pelas parcelas que faltam.
-        A parcela sobe por consequência. São valores estimados ({pct(calc.contract.forecastAnnualIpca)} a.a.).
-      </Notice>
+      <div className="rounded-xl bg-brand-50 px-4 py-3.5 ring-1 ring-inset ring-brand-100">
+        <div className="flex items-center gap-2 font-display text-sm font-semibold text-brand-800">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /></svg>
+          Seu contrato não tem juros
+        </div>
+        <p className="mt-1 text-sm text-brand-800/90">
+          A cada <b>12 meses</b> (todo dia {anniversary}), o valor é apenas <b>atualizado pela inflação
+          oficial (IPCA)</b> — para manter o valor real do que foi combinado, como acontece no reajuste
+          de um aluguel. Abaixo, a estimativa com IPCA de {pct(calc.contract.forecastAnnualIpca)} ao ano.
+        </p>
+      </div>
 
       <SaldoDevedorChart calc={calc} />
 
       <div className="px-1 pt-1">
-        <h3 className="font-display text-base font-bold text-ink-900">Reajustes do saldo devedor</h3>
-        <p className="text-sm text-ink-500">Veja o saldo de cada período recebendo a correção.</p>
+        <h3 className="font-display text-base font-bold text-ink-900">Atualização pela inflação, ano a ano</h3>
+        <p className="text-sm text-ink-500">Veja como o saldo é corrigido pela inflação em cada período.</p>
       </div>
 
       {corrections.map((c) => {
@@ -1100,16 +1159,16 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
                     {formatDateBR(c.date)}
                   </div>
                   <div className="text-xs text-ink-400">
-                    {c.index}o reajuste{isNext ? ' · o próximo' : ''}
+                    {c.index}ª atualização pela inflação{isNext ? ' · a próxima' : ''}
                   </div>
                 </div>
               </div>
-              <Badge tone="warn">{c.isOfficial ? 'IPCA' : 'IPCA estimado'} +{pct(c.ipca)}</Badge>
+              <Badge tone="info">{c.isOfficial ? 'IPCA' : 'IPCA estimado'} {pct(c.ipca)}</Badge>
             </div>
 
             <div className="px-4 pb-1">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
-                Saldo devedor que será reajustado
+                Saldo atualizado pela inflação
               </div>
               <div className="mt-2 flex items-stretch gap-2">
                 <div className="flex-1 rounded-xl bg-ink-50 px-3 py-2.5 text-center">
@@ -1117,11 +1176,11 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
                   <div className="num-display text-base font-bold text-ink-800">{brl(c.balanceBefore)}</div>
                 </div>
                 <div className="flex flex-col items-center justify-center px-1">
-                  <span className="text-[10px] font-bold text-warn-700">+{pct(c.ipca)}</span>
+                  <span className="text-[10px] font-bold text-brand-600">{pct(c.ipca)}</span>
                   <svg width="22" height="14" viewBox="0 0 22 14" fill="none" className="text-ink-300">
                     <path d="M1 7h18m0 0-5-5m5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  <span className="text-[10px] font-medium text-warn-700">+{brl(deltaBalance)}</span>
+                  <span className="text-[10px] font-medium text-ink-500">+{brl(deltaBalance)}</span>
                 </div>
                 <div className="flex-1 rounded-xl bg-brand-50 px-3 py-2.5 text-center ring-1 ring-brand-200">
                   <div className="text-[11px] text-brand-700">depois</div>
@@ -1131,7 +1190,7 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
             </div>
 
             <div className="mt-2 bg-ink-50 px-4 py-3 text-sm text-ink-600">
-              Esse novo saldo é dividido pelas <b>{c.installmentsAffected} parcelas restantes</b> —
+              O saldo atualizado é dividido pelas <b>{c.installmentsAffected} parcelas restantes</b> —
               cada parcela passa de{' '}
               <span className="num-display font-semibold text-ink-700">{brl(c.previousInstallment)}</span> para{' '}
               <span className="num-display font-bold text-ink-900">{brl(c.newInstallment)}</span>.
@@ -1178,22 +1237,22 @@ function SaldoDevedorChart({ calc }: { calc: NonNullable<ReturnType<typeof getCo
         Seu saldo devedor ao longo do tempo
       </h3>
       <p className="mt-1 text-sm text-ink-500">
-        Cai a cada parcela paga. Nos pontos azuis, a cada 12 meses, recebe o reajuste do IPCA.
+        Cai a cada parcela paga. Nos pontos, a cada 12 meses, é atualizado pela inflação (IPCA) — sem juros.
       </p>
       <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full" style={{ height: 175 }}>
         <defs>
           <linearGradient id="saldoFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3a63f6" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#3a63f6" stopOpacity="0" />
+            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.20" />
+            <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
           </linearGradient>
         </defs>
         <path d={area} fill="url(#saldoFill)" />
-        <path d={line} fill="none" stroke="#2347e8" strokeWidth="2" strokeLinejoin="round" />
+        <path d={line} fill="none" stroke="#5b5bd6" strokeWidth="2" strokeLinejoin="round" />
         {marks.map(({ i, c }) => (
           <g key={c.index}>
             <line x1={xAt(i)} y1={yAt(series[i])} x2={xAt(i)} y2={H - padBot} stroke="#cdd6e6" strokeWidth="1" strokeDasharray="2 2" />
-            <circle cx={xAt(i)} cy={yAt(series[i])} r="3.5" fill="#2347e8" stroke="#fff" strokeWidth="1.5" />
-            <text x={xAt(i)} y={yAt(series[i]) - 6} textAnchor="middle" className="fill-warn-700" style={{ fontSize: 8, fontWeight: 700 }}>
+            <circle cx={xAt(i)} cy={yAt(series[i])} r="3.5" fill="#5b5bd6" stroke="#fff" strokeWidth="1.5" />
+            <text x={xAt(i)} y={yAt(series[i]) - 6} textAnchor="middle" className="fill-brand-600" style={{ fontSize: 8, fontWeight: 700 }}>
               +{pct(c.ipca)}
             </text>
             <text x={xAt(i)} y={H - 14} textAnchor="middle" className="fill-ink-500" style={{ fontSize: 8 }}>
