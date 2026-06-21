@@ -72,7 +72,7 @@ export function makeSeed(): Database {
   const pixKey: PixKey = {
     id: 'pix-1',
     contractId: 'contract-1',
-    pixKey: 'admin@local',
+    pixKey: 'fernandogutemberggomes@gmail.com',
     receiverName: 'Fernando Silva',
     bankName: 'Banco do Brasil',
     activeFrom: financingStart,

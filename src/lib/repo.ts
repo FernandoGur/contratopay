@@ -42,10 +42,31 @@ const CREDENTIALS: Record<string, { password: string; userId: string }> = {
 let db: Database = loadDb()
 const listeners = new Set<() => void>()
 
+/**
+ * Migrações leves aplicadas a bancos já salvos no dispositivo, sem perder dados.
+ * Mantém o app atualizado para quem já tem o banco persistido em versões antigas.
+ */
+function migrate(database: Database): Database {
+  // Chaves Pix antigas usavam o placeholder "admin@local", tratado como
+  // "não informada". Promove para o e-mail real do vendedor.
+  for (const k of database.pixKeys ?? []) {
+    if (k.status === 'ativa' && k.pixKey.toLowerCase().endsWith('@local')) {
+      k.pixKey = 'fernandogutemberggomes@gmail.com'
+      if (!k.receiverName) k.receiverName = 'Fernando Silva'
+      if (!k.bankName) k.bankName = 'Banco do Brasil'
+    }
+  }
+  return database
+}
+
 function loadDb(): Database {
   try {
     const raw = localStorage.getItem(DB_KEY)
-    if (raw) return JSON.parse(raw) as Database
+    if (raw) {
+      const migrated = migrate(JSON.parse(raw) as Database)
+      localStorage.setItem(DB_KEY, JSON.stringify(migrated))
+      return migrated
+    }
   } catch {
     /* ignore */
   }

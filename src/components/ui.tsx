@@ -19,7 +19,14 @@ export function Card({
   className?: string
   hover?: boolean
 }) {
-  return <div className={`card p-5 ${hover ? 'card-hover' : ''} ${className}`}>{children}</div>
+  // Permite sobrescrever o padding padrão: se o className traz algum `p-*`,
+  // não aplicamos o `p-5` base (evita conflito de ordem de classes do Tailwind).
+  const hasPadding = /(^|\s)p-\S+/.test(className)
+  return (
+    <div className={`card ${hasPadding ? '' : 'p-5'} ${hover ? 'card-hover' : ''} ${className}`}>
+      {children}
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------

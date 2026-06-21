@@ -64,8 +64,14 @@ export function ClientArea() {
       {/* Cabeçalho */}
       <header className="sticky top-0 z-20 border-b border-ink-200 bg-white/85 backdrop-blur-lg">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
-          {/* Marca ContratoPay */}
-          <Logo subtitle="Gestão Inteligente de Contratos" markClassName="h-9 w-9" />
+          {/* Marca ContratoPay — clica para voltar à Início */}
+          <button
+            onClick={() => setTab('inicio')}
+            aria-label="Voltar para a Início"
+            className="-m-1 rounded-lg p-1 transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-300"
+          >
+            <Logo subtitle="Gestão Inteligente de Contratos" markClassName="h-9 w-9" />
+          </button>
 
           {/* Avatar do cliente + sair */}
           <div className="flex items-center gap-3">
@@ -121,9 +127,9 @@ export function ClientArea() {
           />
         )}
 
-        {/* Telas de detalhe/formulário ficam numa largura confortável de leitura */}
+        {/* Telas internas com a mesma largura da home */}
         {tab !== 'inicio' && (
-          <div className="mx-auto max-w-3xl">
+          <div className="mx-auto max-w-5xl">
             {tab === 'parcelas' && (
               <ParcelasTab
                 calc={calc}
@@ -140,7 +146,7 @@ export function ClientArea() {
           </div>
         )}
 
-        <p className="mx-auto max-w-3xl pb-10 pt-6 text-center text-xs text-ink-400">
+        <p className="mx-auto max-w-5xl pb-10 pt-6 text-center text-xs text-ink-400">
           Esta é uma simulação. Os valores futuros podem variar conforme o IPCA oficial
           e eventuais ajustes no contrato.
         </p>
@@ -236,23 +242,29 @@ function InicioDashboard({
             </div>
           </div>
 
-          {/* três números com hierarquia */}
-          <div className="grid flex-1 grid-cols-3 divide-x divide-ink-100">
-            <div className="pr-3 sm:pr-4">
+          {/* três números — empilhados no mobile, em colunas no desktop */}
+          <div className="grid flex-1 grid-cols-1 divide-y divide-ink-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            <div className="flex items-center justify-between gap-3 py-2.5 first:pt-0 sm:block sm:py-0 sm:pr-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-400">Saldo atual</div>
-              <div className="num-display mt-1.5 text-xl font-bold text-ink-900 sm:text-[22px]">{brl(state.currentBalance)}</div>
-              <div className="mt-0.5 text-xs text-ink-400">em aberto</div>
+              <div className="text-right sm:text-left">
+                <div className="num-display text-lg font-bold text-ink-900 sm:mt-1.5 sm:text-[22px]">{brl(state.currentBalance)}</div>
+                <div className="text-xs text-ink-400 sm:mt-0.5">em aberto</div>
+              </div>
             </div>
-            <div className="px-3 sm:px-4">
+            <div className="flex items-center justify-between gap-3 py-2.5 sm:block sm:py-0 sm:px-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-400">Já pago</div>
-              <div className="num-display mt-1.5 text-xl font-bold text-pos-600 sm:text-[22px]">{brl(state.totalPaid)}</div>
-              <div className="mt-0.5 text-xs text-ink-400">de {brl(contract.totalValue)}</div>
+              <div className="text-right sm:text-left">
+                <div className="num-display text-lg font-bold text-pos-600 sm:mt-1.5 sm:text-[22px]">{brl(state.totalPaid)}</div>
+                <div className="text-xs text-ink-400 sm:mt-0.5">de {brl(contract.totalValue)}</div>
+              </div>
             </div>
-            <div className="pl-3 sm:pl-4">
+            <div className="flex items-center justify-between gap-3 py-2.5 last:pb-0 sm:block sm:py-0 sm:pl-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-400">Próxima parcela</div>
-              <div className="num-display mt-1.5 text-xl font-bold text-ink-900 sm:text-[22px]">{brl(state.currentInstallmentValue)}</div>
-              <div className="mt-0.5 text-xs text-ink-400">
-                {state.nextInstallmentNumber ? `#${state.nextInstallmentNumber} · ${formatDateBR(state.nextInstallmentDueDate)}` : 'quitado'}
+              <div className="text-right sm:text-left">
+                <div className="num-display text-lg font-bold text-ink-900 sm:mt-1.5 sm:text-[22px]">{brl(state.currentInstallmentValue)}</div>
+                <div className="text-xs text-ink-400 sm:mt-0.5">
+                  {state.nextInstallmentNumber ? `#${state.nextInstallmentNumber} · ${formatDateBR(state.nextInstallmentDueDate)}` : 'quitado'}
+                </div>
               </div>
             </div>
           </div>
@@ -279,7 +291,7 @@ function InicioDashboard({
               <span className="h-2 w-2 rounded-sm bg-brand-500" />
               Em aberto <b className="font-semibold text-ink-800">{brl(state.currentBalance)}</b>
             </span>
-            <span className="ml-auto text-ink-400">
+            <span className="basis-full text-ink-400 sm:ml-auto sm:basis-auto">
               {entradaDone ? 'Entrada concluída' : `Entrada ${paidDown}/${downRows.length}`} · Financ. {paidFin}/{finRows.length}
             </span>
           </div>
@@ -301,7 +313,7 @@ function InicioDashboard({
                     <path d="M17 7h4v4" />
                   </svg>
                 </div>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 basis-[60%]">
                   <h3 className="font-display text-base font-semibold text-ink-900">
                     Reduza suas próximas parcelas
                   </h3>
@@ -309,7 +321,9 @@ function InicioDashboard({
                     Simule um pagamento extra e veja o saldo e as parcelas caírem.
                   </p>
                 </div>
-                <Button onClick={onSimular}>Simular economia</Button>
+                <Button onClick={onSimular} className="w-full sm:w-auto">
+                  Simular economia
+                </Button>
               </div>
             </Card>
           )}
@@ -1121,12 +1135,13 @@ function ParcelasTab({
               <Fragment key={`${r.type}-${r.number}`}>
                 {/* Marcador da atualização pela inflação (sem juros) */}
                 {r.correction && (
-                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 bg-brand-50 px-4 py-2">
-                    <span className="text-xs font-semibold text-brand-800">
-                      Atualização estimada pela inflação · IPCA est. ~{pct(r.correction.ipca)} · {formatDateBR(r.dueDate)}
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-l-2 border-brand-300 bg-brand-50/60 px-3.5 py-1.5">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-brand-700">
+                      <span className="h-1 w-1 rounded-full bg-brand-400" />
+                      Atualização anual pela inflação · IPCA est. ~{pct(r.correction.ipca)}
                     </span>
-                    <span className="num-display text-xs font-medium text-brand-700">
-                      saldo estimado: {brl(r.balanceBefore)}
+                    <span className="num-display text-[11px] text-ink-400">
+                      saldo base {brl(r.balanceBefore)}
                     </span>
                   </div>
                 )}
