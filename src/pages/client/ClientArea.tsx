@@ -318,8 +318,11 @@ function InicioDashboard({
 
           {recentPayments.length > 0 && (
             <Card className="p-0">
-              <div className="border-b border-ink-100 px-5 py-3.5">
+              <div className="flex items-center justify-between border-b border-ink-100 px-5 py-3.5">
                 <h3 className="font-display text-base font-semibold text-ink-900">Histórico recente</h3>
+                <button onClick={onVerParcelas} className="text-sm font-semibold text-brand-600 hover:underline">
+                  Ver todas
+                </button>
               </div>
               <div className="divide-y divide-ink-100">
                 {recentPayments.map((p) => (
