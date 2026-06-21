@@ -48,10 +48,10 @@ export function StatCard({
           : 'text-ink-900'
   return (
     <div
-      className={`card p-5 ${accent ? 'ring-2 ring-brand-100 border-brand-200' : ''}`}
+      className={`card min-w-0 p-4 sm:p-5 ${accent ? 'ring-2 ring-brand-100 border-brand-200' : ''}`}
     >
-      <div className="text-[12.5px] font-medium text-ink-400">{label}</div>
-      <div className={`num-display mt-2 text-[1.55rem] font-semibold leading-none ${toneText}`}>
+      <div className="truncate text-[12.5px] font-medium text-ink-400">{label}</div>
+      <div className={`num-display mt-2 text-[1.2rem] leading-none font-semibold sm:text-[1.55rem] ${toneText}`}>
         {value}
       </div>
       {hint && <div className="mt-1.5 text-sm text-ink-500">{hint}</div>}

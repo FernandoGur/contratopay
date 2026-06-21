@@ -178,9 +178,12 @@ function InicioDashboard({
   const finRows = calc.schedule.rows
   const paidDown = downRows.filter((r) => r.status === 'paga').length
   const paidFin = finRows.filter((r) => r.status === 'paga').length
-  const totalCount = downRows.length + finRows.length
   const paidCount = paidDown + paidFin
-  const pctPaid = Math.round((paidCount / totalCount) * 100)
+  // % por VALOR pago (não por quantidade de parcelas).
+  const pctPaid = Math.min(
+    100,
+    Math.round((state.totalPaid / Math.max(1, contract.totalValue)) * 100),
+  )
   const entradaDone = downRows.length > 0 && paidDown === downRows.length
   const upcoming = finRows.filter((r) => r.status !== 'paga').slice(0, 6)
   const recentPayments = [...calc.payments]
@@ -208,11 +211,12 @@ function InicioDashboard({
           <div>
             <div className="text-sm font-medium text-ink-500">Andamento do contrato</div>
             <div className="num-display mt-1 text-3xl font-semibold text-ink-900">
-              {pctPaid}% <span className="text-base font-medium text-ink-400">concluído</span>
+              {pctPaid}% <span className="text-base font-medium text-ink-400">do valor pago</span>
             </div>
           </div>
           <div className="text-right text-sm text-ink-500">
-            <span className="num-display font-semibold text-ink-800">{paidCount}</span> pagamentos realizados
+            <span className="num-display font-semibold text-ink-800">{brl(state.totalPaid)}</span>
+            <span className="block text-xs text-ink-400">de {brl(contract.totalValue)} · {paidCount} pagamentos</span>
           </div>
         </div>
         <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-ink-100">
