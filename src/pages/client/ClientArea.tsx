@@ -502,9 +502,9 @@ function ExtraBlock({
               : 'bg-white text-ink-600 ring-1 ring-ink-200'
           }`}
         >
-          Reduzir minhas parcelas
+          Reduzir valor das parcelas
           <span className={`mt-0.5 block text-xs font-normal ${mode === 'reduzir' ? 'text-white/80' : 'text-ink-400'}`}>
-            pago um extra e as próximas caem
+            pago um extra e o valor cai
           </span>
         </button>
         <button
@@ -567,7 +567,7 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
   return (
     <Card>
       <h3 className="font-display text-base font-bold text-ink-900">
-        Pagamento extra para reduzir minhas parcelas
+        Pagamento extra para reduzir o valor das parcelas
       </h3>
       <p className="mt-1 text-sm text-ink-500">
         Um pagamento à parte, separado da sua parcela mensal. O valor vai direto para o saldo
