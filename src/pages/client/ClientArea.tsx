@@ -535,6 +535,7 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
   const [extraText, setExtraText] = useState('')
   const [targetText, setTargetText] = useState('')
   const [copied, setCopied] = useState(false)
+  const [showDetails, setShowDetails] = useState(false)
 
   const saldo = calc.state.currentBalance
   const vincendas = calc.state.financingRemaining
@@ -595,7 +596,7 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
       {inputMode === 'valor' ? (
         <div className="mt-3">
           <label className="mb-1.5 block text-sm font-medium text-ink-700">
-            Valor do pagamento extra
+            Quanto deseja pagar a mais?
           </label>
           <Input
             inputMode="decimal"
@@ -603,6 +604,21 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
             onChange={(e) => setExtraText(e.target.value)}
             placeholder="Ex.: 5.000,00"
           />
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {[1000, 5000, 10000, 20000].map((v) => (
+              <button
+                key={v}
+                onClick={() => setExtraText(num(v))}
+                className={`rounded-lg px-2.5 py-1 text-sm font-semibold transition-colors ${
+                  Math.abs(parseMoney(extraText) - v) < 0.5
+                    ? 'bg-brand-600 text-white'
+                    : 'bg-ink-100 text-ink-600 hover:bg-ink-200'
+                }`}
+              >
+                {brl(v)}
+              </button>
+            ))}
+          </div>
         </div>
       ) : (
         <div className="mt-3">
@@ -650,57 +666,54 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
       )}
 
       {extra > 0 && (
-        <div className="mt-4 space-y-3">
-          {/* Fluxo do saldo: antes -> abate extra -> depois */}
-          <div className="rounded-xl bg-ink-50 px-4 py-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
-              Saldo devedor
+        <div className="mt-5 space-y-3">
+          {/* Resultado principal: a parcela cai */}
+          <div className="rounded-2xl bg-brand-50 p-5 text-center ring-1 ring-brand-200">
+            <div className="text-sm font-medium text-brand-700">Sua nova parcela ficaria</div>
+            <div className="num-display mt-1 text-4xl font-bold text-brand-800">
+              {brl(sim.newInstallmentEstimate)}
             </div>
-            <div className="mt-2 flex items-stretch gap-2">
-              <div className="flex-1 rounded-xl bg-white px-3 py-2.5 text-center ring-1 ring-ink-200">
-                <div className="text-[11px] text-ink-400">antes</div>
-                <div className="num-display text-base font-bold text-ink-800">{brl(sim.balanceBefore)}</div>
-              </div>
-              <div className="flex flex-col items-center justify-center px-1">
-                <span className="text-[10px] font-bold text-pos-700">− {brl(sim.extra)}</span>
-                <svg width="22" height="14" viewBox="0 0 22 14" fill="none" className="text-ink-300">
-                  <path d="M1 7h18m0 0-5-5m5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-              <div className="flex-1 rounded-xl bg-brand-50 px-3 py-2.5 text-center ring-1 ring-brand-200">
-                <div className="text-[11px] text-brand-700">depois</div>
-                <div className="num-display text-base font-bold text-brand-800">{brl(sim.balanceAfter)}</div>
-              </div>
+            <div className="mt-1 text-sm text-ink-500">
+              hoje é {brl(sim.currentInstallmentEstimate)} ·{' '}
+              <span className="font-semibold text-pos-600">−{brl(sim.monthlySavings)} por mês</span>
             </div>
           </div>
 
+          {/* Dois fatos simples */}
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-ink-50 p-3">
-              <div className="text-xs text-ink-500">Parcela atual</div>
-              <div className="num-display font-bold text-ink-900">{brl(sim.currentInstallmentEstimate)}</div>
+              <div className="text-xs text-ink-500">Você paga a mais</div>
+              <div className="num-display font-bold text-ink-900">{brl(sim.extra)}</div>
             </div>
-            <div className="rounded-xl bg-pos-50 p-3 ring-1 ring-pos-500/20">
-              <div className="text-xs text-pos-700">Nova parcela estimada</div>
-              <div className="num-display font-bold text-pos-600">{brl(sim.newInstallmentEstimate)}</div>
+            <div className="rounded-xl bg-ink-50 p-3">
+              <div className="text-xs text-ink-500">Saldo passa a ser</div>
+              <div className="num-display font-bold text-ink-900">{brl(sim.balanceAfter)}</div>
             </div>
           </div>
 
-          <div className="rounded-xl border border-pos-500/20 bg-pos-50 p-4">
-            <Row label="Economia mensal estimada" value={brl(sim.monthlySavings)} />
-            <Row label="Você deixa de pagar (parcelas futuras)" value={brl(sim.totalSavingsWithIpca)} />
-            <div className="my-1.5 border-t border-pos-500/20" />
-            <Row label="Economia real (IPCA evitado)" value={brl(sim.netIpcaSavings)} strong />
+          {/* Economia em destaque (líquida) */}
+          <div className="flex items-center justify-between rounded-xl bg-pos-50 px-4 py-3.5 ring-1 ring-pos-500/20">
+            <div className="text-sm font-medium text-pos-700">Você economiza de inflação no total</div>
+            <div className="num-display text-xl font-bold text-pos-600">{brl(sim.netIpcaSavings)}</div>
           </div>
 
-          <DiscountBreakdown sim={sim} />
+          {/* Detalhes recolhíveis */}
+          <button
+            onClick={() => setShowDetails((v) => !v)}
+            className="flex w-full items-center justify-center gap-1 py-1 text-sm font-semibold text-brand-600 hover:underline"
+          >
+            {showDetails ? 'Ocultar detalhes' : 'Ver detalhes da economia'}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={showDetails ? 'rotate-180' : ''}><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+          {showDetails && <DiscountBreakdown sim={sim} />}
 
           <Button onClick={copyExtra} className="w-full">
             {copied ? 'Valor copiado!' : `Gerar pagamento extra (${brl(sim.extra)})`}
           </Button>
 
           <p className="text-center text-xs text-ink-400">
-            Esta é uma simulação. Pague este valor extra à parte e envie o comprovante —
-            o vendedor aplicará a redução do saldo oficialmente.
+            Esta é uma simulação. Pague este valor à parte e envie o comprovante — o vendedor aplica
+            a redução do saldo oficialmente.
           </p>
         </div>
       )}
