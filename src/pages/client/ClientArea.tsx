@@ -21,6 +21,7 @@ import {
   Notice,
   PAYMENT_STATUS_LABEL,
   Row,
+  StatCard,
 } from '@/components/ui'
 
 type ClientTab = 'inicio' | 'parcelas' | 'pagamentos' | 'simular' | 'previsao' | 'contrato'
@@ -49,7 +50,7 @@ export function ClientArea() {
     )
   }
 
-  const { contract, client, state } = calc
+  const { contract, client } = calc
   const pix = getActivePixKey(contract.id)
 
   return (
@@ -94,26 +95,7 @@ export function ClientArea() {
 
       <main className="mx-auto max-w-5xl px-4 py-6">
         {tab === 'inicio' && (
-          <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
-            <div className="space-y-5 lg:col-span-2">
-              {contract.clientNotes && <Notice>{contract.clientNotes}</Notice>}
-              <PixBlock calc={calc} pix={pix} />
-            </div>
-            <div className="space-y-5">
-              <SaldoBlock calc={calc} />
-              {state.nextInstallmentNumber && (
-                <Card className="card-hover">
-                  <div className="font-display font-bold text-ink-900">Quer reduzir suas parcelas?</div>
-                  <div className="mt-1 text-sm text-ink-500">
-                    Pague um valor extra e diminua o saldo e as próximas parcelas.
-                  </div>
-                  <Button onClick={() => setTab('simular')} className="mt-3 w-full">
-                    Simular
-                  </Button>
-                </Card>
-              )}
-            </div>
-          </div>
+          <InicioDashboard calc={calc} pix={pix} onSimular={() => setTab('simular')} onVerParcelas={() => setTab('parcelas')} />
         )}
 
         {/* Telas de detalhe/formulário ficam numa largura confortável de leitura */}
@@ -146,6 +128,115 @@ function useResolvedContract(paramId: string | undefined, clientId?: string) {
       paramId ?? getDb().contracts.find((c) => c.clientId === clientId)?.id
     return cid ? getContractCalc(cid) : null
   }, [paramId, clientId, db])
+}
+
+// ---------------------------------------------------------------------------
+// Tela inicial — painel (dashboard) do cliente
+// ---------------------------------------------------------------------------
+function InicioDashboard({
+  calc,
+  pix,
+  onSimular,
+  onVerParcelas,
+}: {
+  calc: NonNullable<ReturnType<typeof getContractCalc>>
+  pix: ReturnType<typeof getActivePixKey>
+  onSimular: () => void
+  onVerParcelas: () => void
+}) {
+  const { state, contract } = calc
+  const allRows = [...calc.downRows, ...calc.schedule.rows]
+  const total = allRows.length
+  const paid = allRows.filter((r) => r.status === 'paga').length
+  const pctPaid = Math.round((paid / total) * 100)
+  const upcoming = calc.schedule.rows.filter((r) => r.status !== 'paga').slice(0, 6)
+
+  return (
+    <div className="space-y-5">
+      {/* Progresso do contrato */}
+      <Card>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-ink-400">
+              Andamento do contrato
+            </div>
+            <div className="num-display mt-1 text-3xl font-extrabold text-ink-900">
+              {pctPaid}% <span className="text-lg font-bold text-ink-400">quitado</span>
+            </div>
+          </div>
+          <div className="text-right text-sm text-ink-500">
+            <span className="num-display font-bold text-ink-800">{paid}</span> de{' '}
+            <span className="num-display font-bold text-ink-800">{total}</span> parcelas pagas
+          </div>
+        </div>
+        <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-ink-100">
+          <div className="bg-brand-gradient h-full rounded-full" style={{ width: `${Math.max(pctPaid, 2)}%` }} />
+        </div>
+      </Card>
+
+      {/* Indicadores */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="Saldo atual" value={brl(state.currentBalance)} accent />
+        <StatCard label="Total já pago" value={brl(state.totalPaid)} tone="pos" />
+        <StatCard
+          label="Próxima parcela"
+          value={brl(state.currentInstallmentValue)}
+          hint={state.nextInstallmentNumber ? `#${state.nextInstallmentNumber} · ${formatDateBR(state.nextInstallmentDueDate)}` : 'quitado'}
+        />
+        <StatCard label="Em aberto (previsto)" value={brl(state.totalOpenProjected)} />
+      </div>
+
+      {/* Conteúdo principal em duas colunas */}
+      <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
+        <div className="space-y-5 lg:col-span-2">
+          {contract.clientNotes && <Notice>{contract.clientNotes}</Notice>}
+          <PixBlock calc={calc} pix={pix} />
+          <SaldoDevedorChart calc={calc} />
+        </div>
+
+        <div className="space-y-5">
+          <Card className="p-0">
+            <div className="flex items-center justify-between border-b border-ink-100 px-5 py-3.5">
+              <h3 className="font-display text-base font-bold text-ink-900">Próximas parcelas</h3>
+              <button onClick={onVerParcelas} className="text-sm font-semibold text-brand-600 hover:underline">
+                Ver todas
+              </button>
+            </div>
+            <div className="divide-y divide-ink-100">
+              {upcoming.map((r) => (
+                <div key={r.number} className="flex items-center justify-between px-5 py-2.5">
+                  <div>
+                    <div className="text-sm font-semibold text-ink-800">
+                      Parcela {r.number}
+                      {r.correction && (
+                        <span className="ml-1.5 rounded-full bg-warn-50 px-1.5 py-0.5 text-[9px] font-bold text-warn-700">
+                          IPCA +{pct(r.correction.ipca)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-ink-400">{formatDateBR(r.dueDate)}</div>
+                  </div>
+                  <span className="num-display text-sm font-bold text-ink-900">{brl(r.value)}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {state.nextInstallmentNumber && (
+            <Card className="card-hover bg-brand-50/40 ring-1 ring-brand-100">
+              <div className="font-display font-bold text-ink-900">Quer reduzir suas parcelas?</div>
+              <div className="mt-1 text-sm text-ink-500">
+                Pague um valor extra e diminua o saldo e as próximas parcelas — ou quite as últimas com desconto de IPCA.
+              </div>
+              <Button onClick={onSimular} className="mt-3 w-full">
+                Simular pagamento
+              </Button>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -236,25 +327,6 @@ function PixBlock({
           </Button>
         </div>
       </div>
-    </Card>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Bloco de saldo
-// ---------------------------------------------------------------------------
-function SaldoBlock({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
-  const { state } = calc
-  return (
-    <Card>
-      <h3 className="mb-2 text-base font-semibold text-ink-900">Saldo do contrato</h3>
-      <Row label="Saldo atual do contrato" value={brl(state.currentBalance)} strong />
-      <Row label="Total já pago" value={brl(state.totalPaid)} />
-      <Row label="Total previsto em aberto" value={brl(state.totalOpenProjected)} />
-      <Row
-        label="Próxima estimativa de correção"
-        value={state.nextCorrection ? formatDateBR(state.nextCorrection.date) : '—'}
-      />
     </Card>
   )
 }
