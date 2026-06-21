@@ -1032,51 +1032,77 @@ function ParcelasTab({
 
       <Card className="p-0">
         <div className="divide-y divide-ink-100">
-          {visible.map((r) => (
-            <Fragment key={`${r.type}-${r.number}`}>
-              {/* Marcador da atualização pela inflação (sem juros) */}
-              {r.correction && (
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 bg-brand-50 px-4 py-2">
-                  <span className="text-xs font-semibold text-brand-800">
-                    Atualização estimada pela inflação · IPCA est. ~{pct(r.correction.ipca)} · {formatDateBR(r.dueDate)}
-                  </span>
-                  <span className="num-display text-xs font-medium text-brand-700">
-                    saldo estimado: {brl(r.balanceBefore)}
-                  </span>
-                </div>
-              )}
-              <div className="px-4 py-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-semibold text-ink-800">
-                      Parcela {r.number}
-                      <span className="ml-1.5 font-normal text-ink-400">
-                        {r.type === 'entrada' ? '· entrada' : ''}
-                      </span>
-                    </div>
-                    <div className="text-xs text-ink-400">
-                      {formatDateBR(r.dueDate)}
-                      {r.amortization ? ' · com pagamento extra' : ''}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="num-display text-sm font-bold text-ink-900">{brl(r.value)}</span>
-                    <Badge tone={INSTALLMENT_STATUS_TONE[r.status]}>
-                      {INSTALLMENT_STATUS_LABEL[r.status]}
-                    </Badge>
-                  </div>
-                </div>
-                {r.type === 'financiamento' && (
-                  <div className="mt-1.5 flex items-center justify-between rounded-lg bg-ink-50 px-2.5 py-1">
-                    <span className="text-[11px] text-ink-400">Saldo devedor após esta parcela</span>
-                    <span className="num-display text-xs font-semibold text-ink-700">
-                      {brl(r.balanceAfter)}
+          {visible.map((r) => {
+            const isLast =
+              !!lastInstallment &&
+              r.type === 'financiamento' &&
+              r.number === lastInstallment.number &&
+              r.status !== 'paga'
+            return (
+              <Fragment key={`${r.type}-${r.number}`}>
+                {/* Marcador da atualização pela inflação (sem juros) */}
+                {r.correction && (
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 bg-brand-50 px-4 py-2">
+                    <span className="text-xs font-semibold text-brand-800">
+                      Atualização estimada pela inflação · IPCA est. ~{pct(r.correction.ipca)} · {formatDateBR(r.dueDate)}
+                    </span>
+                    <span className="num-display text-xs font-medium text-brand-700">
+                      saldo estimado: {brl(r.balanceBefore)}
                     </span>
                   </div>
                 )}
-              </div>
-            </Fragment>
-          ))}
+                <div className={`px-4 py-3 ${isLast ? 'bg-pos-50' : ''}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-ink-800">
+                        Parcela {r.number}
+                        <span className="font-normal text-ink-400">
+                          {r.type === 'entrada' ? '· entrada' : ''}
+                        </span>
+                        {isLast && (
+                          <span className="rounded-full bg-pos-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
+                            Última
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-ink-400">
+                        {formatDateBR(r.dueDate)}
+                        {r.amortization ? ' · com pagamento extra' : ''}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="num-display text-sm font-bold text-ink-900">{brl(r.value)}</span>
+                      <Badge tone={INSTALLMENT_STATUS_TONE[r.status]}>
+                        {INSTALLMENT_STATUS_LABEL[r.status]}
+                      </Badge>
+                    </div>
+                  </div>
+                  {r.type === 'financiamento' && !isLast && (
+                    <div className="mt-1.5 flex items-center justify-between rounded-lg bg-ink-50 px-2.5 py-1">
+                      <span className="text-[11px] text-ink-400">Saldo devedor após esta parcela</span>
+                      <span className="num-display text-xs font-semibold text-ink-700">
+                        {brl(r.balanceAfter)}
+                      </span>
+                    </div>
+                  )}
+                  {/* Última parcela: sugestão de quitar com desconto, na própria linha */}
+                  {isLast && lastSim && lastSim.ipcaDiscount > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white p-2.5 ring-1 ring-pos-500/20">
+                      <span className="text-xs text-ink-600">
+                        Quite agora por{' '}
+                        <b className="num-display text-ink-900">{brl(lastSim.payToday)}</b>{' '}
+                        <span className="text-ink-400 line-through">{brl(lastSim.futureValueWithIpca)}</span>{' '}
+                        · economize <b className="text-pos-700">{brl(lastSim.ipcaDiscount)}</b>
+                      </span>
+                      <Button size="sm" onClick={onQuitarUltima}>
+                        Quitar com desconto
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </Fragment>
+            )
+          })}
         </div>
       </Card>
       <p className="text-center text-xs text-ink-400">

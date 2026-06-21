@@ -7,6 +7,7 @@ import {
   recordPayment,
   setPaymentStatus,
   setPixKey,
+  updateContract,
 } from '@/lib/repo'
 import { useDb } from '@/lib/store'
 import { brl, parseMoney, pct } from '@/lib/format'
@@ -25,6 +26,7 @@ import {
   PAYMENT_STATUS_LABEL,
   PageHeader,
   Row,
+  Select,
   Textarea,
 } from '@/components/ui'
 
@@ -47,6 +49,7 @@ export function ContractDetail() {
   const [payModal, setPayModal] = useState<{ row: ScheduleRow } | null>(null)
   const [ipcaModal, setIpcaModal] = useState(false)
   const [pixModal, setPixModal] = useState(false)
+  const [editModal, setEditModal] = useState(false)
 
   if (!calc) {
     return (
@@ -71,6 +74,9 @@ export function ContractDetail() {
         subtitle={`${client?.name} · ${client?.document}`}
         actions={
           <>
+            <Button variant="secondary" onClick={() => setEditModal(true)}>
+              Editar contrato
+            </Button>
             <Button variant="secondary" onClick={() => setIpcaModal(true)}>
               Aplicar IPCA
             </Button>
@@ -141,7 +147,75 @@ export function ContractDetail() {
       )}
       {ipcaModal && <IpcaModal calc={calc} onClose={() => setIpcaModal(false)} />}
       {pixModal && <PixModal calc={calc} onClose={() => setPixModal(false)} />}
+      {editModal && <EditContractModal calc={calc} onClose={() => setEditModal(false)} />}
     </div>
+  )
+}
+
+function EditContractModal({
+  calc,
+  onClose,
+}: {
+  calc: NonNullable<ReturnType<typeof getContractCalc>>
+  onClose: () => void
+}) {
+  const c = calc.contract
+  const [title, setTitle] = useState(c.title)
+  const [status, setStatus] = useState(c.status)
+  const [ipcaText, setIpcaText] = useState(String((c.forecastAnnualIpca * 100).toString().replace('.', ',')))
+  const [clientNotes, setClientNotes] = useState(c.clientNotes)
+  const [internalNotes, setInternalNotes] = useState(c.internalNotes)
+
+  function save() {
+    if (!title.trim()) return
+    updateContract(c.id, {
+      title: title.trim(),
+      status,
+      forecastAnnualIpca: (parseFloat(ipcaText.replace(',', '.')) || 0) / 100,
+      clientNotes,
+      internalNotes,
+    })
+    onClose()
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Editar contrato" wide>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <Field label="Nome do contrato / imóvel">
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex.: Venda de Terreno — Lote 00" />
+          </Field>
+        </div>
+        <Field label="Status do contrato">
+          <Select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
+            <option value="ativo">Ativo</option>
+            <option value="quitado">Quitado</option>
+            <option value="atrasado">Atrasado</option>
+            <option value="renegociado">Renegociado</option>
+            <option value="cancelado">Cancelado</option>
+          </Select>
+        </Field>
+        <Field label="IPCA estimado (% ao ano)" hint="Usado nas simulações/projeções.">
+          <Input value={ipcaText} onChange={(e) => setIpcaText(e.target.value)} />
+        </Field>
+        <div className="sm:col-span-2">
+          <Field label="Observações visíveis ao cliente">
+            <Textarea value={clientNotes} onChange={(e) => setClientNotes(e.target.value)} />
+          </Field>
+        </div>
+        <div className="sm:col-span-2">
+          <Field label="Observações internas (não aparecem ao cliente)">
+            <Textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} />
+          </Field>
+        </div>
+      </div>
+      <div className="mt-5 flex justify-end gap-2">
+        <Button variant="secondary" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button onClick={save}>Salvar alterações</Button>
+      </div>
+    </Modal>
   )
 }
 
