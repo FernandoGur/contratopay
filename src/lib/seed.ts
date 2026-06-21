@@ -90,7 +90,7 @@ export function makeSeed(): Database {
     { date: '2025-09-30', parcelas: [5, 6], valores: [1458.33, 1458.33] },
     { date: '2025-10-29', parcelas: [7, 8], valores: [1458.33, 1458.33] },
     { date: '2025-11-28', parcelas: [9, 10], valores: [1458.33, 1458.33] },
-    { date: '2026-01-30', parcelas: [11, 12], valores: [1458.17, 1458.16] },
+    { date: '2026-01-30', parcelas: [11, 12], valores: [1458.35, 1458.35] },
   ]
   for (const pg of entradaPagamentos) {
     pg.parcelas.forEach((num, idx) => {
