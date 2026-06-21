@@ -784,7 +784,6 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
   const finRows = calc.schedule.rows
   const mapRows = [...calc.downRows, ...finRows]
   const openFin = finRows.filter((r) => r.status !== 'paga')
-  const nextNum = openFin[0]?.number
   const quitRows = openFin.slice(openFin.length - sim.count)
   const quitSet = new Set(quitRows.map((r) => r.number))
   const lastRow = quitRows[quitRows.length - 1]
@@ -838,9 +837,6 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
             <i className="h-3 w-3 rounded-[4px] bg-pos-100" /> paga
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <i className="h-3 w-3 rounded-[4px] bg-brand-500" /> próxima
-          </span>
-          <span className="inline-flex items-center gap-1.5">
             <i className="h-3 w-3 rounded-[4px] bg-ink-200" /> em aberto
           </span>
           <span className="inline-flex items-center gap-1.5">
@@ -850,15 +846,12 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
         <div className="flex flex-wrap gap-1.5">
           {mapRows.map((r) => {
             const isPaid = r.status === 'paga'
-            const isNext = r.number === nextNum
             const isQuit = quitSet.has(r.number)
             const cls = isQuit
               ? 'bg-pos-500 text-white scale-110 shadow-sm'
-              : isNext
-                ? 'bg-brand-500 text-white'
-                : isPaid
-                  ? 'bg-pos-100 text-pos-700'
-                  : 'bg-ink-200 text-ink-400'
+              : isPaid
+                ? 'bg-pos-100 text-pos-700'
+                : 'bg-ink-200 text-ink-400'
             return (
               <div
                 key={`${r.type}-${r.number}`}
@@ -1307,16 +1300,18 @@ function SaldoDevedorChart({
   const maxV = Math.max(financedValue, ...series)
   const n = series.length
 
-  const W = 340
-  const H = 158
-  const padX = 8
-  const padTop = 16
-  const padBot = 26
+  const W = 360
+  const H = 190
+  const padX = 12
+  const padTop = 26
+  const padBot = 36
+  const baseY = H - padBot
   const xAt = (i: number) => padX + (i / (n - 1)) * (W - 2 * padX)
   const yAt = (v: number) => padTop + (1 - v / maxV) * (H - padTop - padBot)
 
-  const line = series.map((v, i) => `${i ? 'L' : 'M'}${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(' ')
-  const area = `${line} L${xAt(n - 1).toFixed(1)},${H - padBot} L${xAt(0).toFixed(1)},${H - padBot} Z`
+  const pts = series.map((v, i) => ({ x: xAt(i), y: yAt(v) }))
+  const linePath = smoothPath(pts)
+  const areaPath = `${linePath} L${pts[n - 1].x.toFixed(1)},${baseY} L${pts[0].x.toFixed(1)},${baseY} Z`
 
   const marks = schedule.corrections
     .map((c) => {
@@ -1335,37 +1330,84 @@ function SaldoDevedorChart({
       <p className="mt-1 text-sm text-ink-500">
         Cai a cada parcela paga. Nos pontos, a cada 12 meses, é atualizado pela inflação (IPCA) — sem juros.
       </p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full" style={{ height: 175 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full" style={{ height: 205 }}>
         <defs>
-          <linearGradient id="saldoFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.20" />
+          <linearGradient id="saldoArea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.22" />
+            <stop offset="55%" stopColor="#6366f1" stopOpacity="0.06" />
             <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
           </linearGradient>
+          <linearGradient id="saldoLine" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#6366f1" />
+            <stop offset="100%" stopColor="#5b5bd6" />
+          </linearGradient>
+          <filter id="lineGlow" x="-10%" y="-20%" width="120%" height="160%">
+            <feDropShadow dx="0" dy="2.5" stdDeviation="2.4" floodColor="#5b5bd6" floodOpacity="0.28" />
+          </filter>
         </defs>
-        <path d={area} fill="url(#saldoFill)" />
-        <path d={line} fill="none" stroke="#5b5bd6" strokeWidth="2" strokeLinejoin="round" />
-        {marks.map(({ i, c }) => (
-          <g key={c.index}>
-            <line x1={xAt(i)} y1={yAt(series[i])} x2={xAt(i)} y2={H - padBot} stroke="#cdd6e6" strokeWidth="1" strokeDasharray="2 2" />
-            <circle cx={xAt(i)} cy={yAt(series[i])} r="3.5" fill="#5b5bd6" stroke="#fff" strokeWidth="1.5" />
-            <text x={xAt(i)} y={yAt(series[i]) - 6} textAnchor="middle" className="fill-brand-600" style={{ fontSize: 8, fontWeight: 700 }}>
-              ~{pct(c.ipca)}
-            </text>
-            <text x={xAt(i)} y={H - 14} textAnchor="middle" className="fill-ink-500" style={{ fontSize: 8 }}>
-              {formatMonthBR(c.date)}
-            </text>
-            <text x={xAt(i)} y={H - 4} textAnchor="middle" className="fill-ink-400" style={{ fontSize: 7.5 }}>
-              {kFmt(c.balanceBefore)}
-            </text>
-          </g>
-        ))}
+
+        {/* base */}
+        <line x1={padX} y1={baseY} x2={W - padX} y2={baseY} stroke="#eceef4" strokeWidth="1" />
+        <path d={areaPath} fill="url(#saldoArea)" />
+        <path
+          d={linePath}
+          fill="none"
+          stroke="url(#saldoLine)"
+          strokeWidth="2.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          filter="url(#lineGlow)"
+        />
+
+        {marks.map(({ i, c }) => {
+          const x = xAt(i)
+          const y = yAt(series[i])
+          return (
+            <g key={c.index}>
+              <line x1={x} y1={y} x2={x} y2={baseY} stroke="#d7dae8" strokeWidth="1" strokeDasharray="1 3" />
+              <circle cx={x} cy={y} r="7" fill="#6366f1" opacity="0.12" />
+              <circle cx={x} cy={y} r="3.8" fill="url(#saldoLine)" stroke="#fff" strokeWidth="2" />
+              {/* pílula com o IPCA estimado */}
+              <g transform={`translate(${x}, ${y - 18})`}>
+                <rect x="-14" y="-8.5" width="28" height="16" rx="8" fill="#fff" stroke="#dcdcf6" strokeWidth="1" />
+                <text x="0" y="3" textAnchor="middle" className="fill-brand-700" style={{ fontSize: 8.5, fontWeight: 700 }}>
+                  ~{pct(c.ipca)}
+                </text>
+              </g>
+              <text x={x} y={baseY + 14} textAnchor="middle" className="fill-ink-600" style={{ fontSize: 8.5, fontWeight: 600 }}>
+                {formatMonthBR(c.date)}
+              </text>
+              <text x={x} y={baseY + 24} textAnchor="middle" className="fill-ink-400" style={{ fontSize: 8 }}>
+                {kFmt(c.balanceBefore)}
+              </text>
+            </g>
+          )
+        })}
       </svg>
-      <div className="mt-1 flex justify-between text-xs text-ink-400">
-        <span>início {brl(financedValue)}</span>
+      <div className="mt-1 flex items-center justify-between text-xs text-ink-400">
+        <span>início <b className="num-display font-semibold text-ink-600">{brl(financedValue)}</b></span>
         <span>fim do contrato</span>
       </div>
     </Card>
   )
+}
+
+/** Caminho suavizado (Catmull-Rom → Bézier) para um conjunto de pontos. */
+function smoothPath(pts: { x: number; y: number }[]): string {
+  if (pts.length < 2) return ''
+  let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i]
+    const p1 = pts[i]
+    const p2 = pts[i + 1]
+    const p3 = pts[i + 2] ?? p2
+    const c1x = p1.x + (p2.x - p0.x) / 6
+    const c1y = p1.y + (p2.y - p0.y) / 6
+    const c2x = p2.x - (p3.x - p1.x) / 6
+    const c2y = p2.y - (p3.y - p1.y) / 6
+    d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`
+  }
+  return d
 }
 
 // ---------------------------------------------------------------------------
