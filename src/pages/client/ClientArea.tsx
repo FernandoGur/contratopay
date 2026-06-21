@@ -66,7 +66,7 @@ export function ClientArea() {
       <header className="sticky top-0 z-20 border-b border-ink-200 bg-white/85 backdrop-blur-lg">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           {/* Marca ContratoPay */}
-          <Logo subtitle="Portal do seu contrato" markClassName="h-9 w-9" />
+          <Logo subtitle="Gestão Inteligente de Contratos" markClassName="h-9 w-9" />
 
           {/* Avatar do cliente + sair */}
           <div className="flex items-center gap-3">
