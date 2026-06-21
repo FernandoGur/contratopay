@@ -10,7 +10,7 @@ import {
 import { useCurrentUser, useDb } from '@/lib/store'
 import { brl, num, parseMoney, pct } from '@/lib/format'
 import { formatDateBR, formatMonthBR } from '@/lib/dates'
-import { simulateAnticipateLast, simulateExtraPayment } from '@/lib/finance'
+import { simulateExtraPayment } from '@/lib/finance'
 import {
   Badge,
   Button,
@@ -52,26 +52,47 @@ export function ClientArea() {
 
   const { contract, client } = calc
   const pix = getActivePixKey(contract.id)
+  const clientInitials = (client?.name ?? 'Cliente')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? '')
+    .join('')
 
   return (
     <div className="min-h-screen">
       {/* Cabeçalho */}
       <header className="sticky top-0 z-20 border-b border-ink-200 bg-white/85 backdrop-blur-lg">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="bg-brand-gradient flex h-10 w-10 items-center justify-center rounded-xl font-display text-lg font-extrabold text-white shadow-[var(--shadow-brand)]">
-              R
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+          {/* Marca ContratoPay (espaço preparado para o logo) */}
+          <div className="leading-tight">
+            <div className="font-display text-[16px] font-semibold tracking-[-0.03em] text-ink-900">
+              Contrato<span className="text-brand-600">Pay</span>
             </div>
-            <div>
-              <div className="font-display text-[15px] font-bold text-ink-900">{contract.title}</div>
-              <div className="text-xs text-ink-400">Olá, {client?.name}</div>
-            </div>
+            <div className="text-[11px] text-ink-400">Portal do seu contrato</div>
           </div>
-          {user && (
-            <button onClick={logout} className="text-sm font-medium text-ink-500 hover:text-ink-800">
-              Sair
-            </button>
-          )}
+          {/* Avatar do cliente + sair */}
+          <div className="flex items-center gap-3">
+            <div className="hidden text-right sm:block">
+              <div className="text-[13px] font-semibold text-ink-800">{client?.name}</div>
+              <div className="text-[11px] text-ink-400">Cliente</div>
+            </div>
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-ink-100 text-xs font-semibold text-ink-600"
+              aria-hidden="true"
+            >
+              {clientInitials}
+            </div>
+            {user && (
+              <button
+                onClick={logout}
+                aria-label="Sair da conta"
+                className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+              >
+                Sair
+              </button>
+            )}
+          </div>
         </div>
         {/* Abas roláveis */}
         <div className="mx-auto max-w-5xl overflow-x-auto px-2">
@@ -95,7 +116,13 @@ export function ClientArea() {
 
       <main className="mx-auto max-w-5xl px-4 py-6">
         {tab === 'inicio' && (
-          <InicioDashboard calc={calc} pix={pix} onSimular={() => setTab('simular')} onVerParcelas={() => setTab('parcelas')} />
+          <InicioDashboard
+            calc={calc}
+            pix={pix}
+            onSimular={() => setTab('simular')}
+            onVerParcelas={() => setTab('parcelas')}
+            onVerContrato={() => setTab('contrato')}
+          />
         )}
 
         {/* Telas de detalhe/formulário ficam numa largura confortável de leitura */}
@@ -133,106 +160,215 @@ function useResolvedContract(paramId: string | undefined, clientId?: string) {
 // ---------------------------------------------------------------------------
 // Tela inicial — painel (dashboard) do cliente
 // ---------------------------------------------------------------------------
+function InfoDot({ label }: { label: string }) {
+  return (
+    <span
+      title={label}
+      aria-label={label}
+      role="img"
+      className="inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full bg-ink-200 text-[9px] font-bold text-ink-500"
+    >
+      i
+    </span>
+  )
+}
+
 function InicioDashboard({
   calc,
   pix,
   onSimular,
   onVerParcelas,
+  onVerContrato,
 }: {
   calc: NonNullable<ReturnType<typeof getContractCalc>>
   pix: ReturnType<typeof getActivePixKey>
   onSimular: () => void
   onVerParcelas: () => void
+  onVerContrato: () => void
 }) {
-  const { state, contract } = calc
-  const allRows = [...calc.downRows, ...calc.schedule.rows]
-  const total = allRows.length
-  const paid = allRows.filter((r) => r.status === 'paga').length
-  const pctPaid = Math.round((paid / total) * 100)
-  const upcoming = calc.schedule.rows.filter((r) => r.status !== 'paga').slice(0, 6)
+  const { state, contract, client } = calc
+  const downRows = calc.downRows
+  const finRows = calc.schedule.rows
+  const paidDown = downRows.filter((r) => r.status === 'paga').length
+  const paidFin = finRows.filter((r) => r.status === 'paga').length
+  const totalCount = downRows.length + finRows.length
+  const paidCount = paidDown + paidFin
+  const pctPaid = Math.round((paidCount / totalCount) * 100)
+  const entradaDone = downRows.length > 0 && paidDown === downRows.length
+  const upcoming = finRows.filter((r) => r.status !== 'paga').slice(0, 6)
+  const recentPayments = [...calc.payments]
+    .filter((p) => p.status === 'pago')
+    .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate))
+    .slice(0, 3)
 
   return (
     <div className="space-y-5">
+      {/* Contexto do contrato + boas-vindas (discreto) */}
+      <div>
+        <div className="text-[11px] font-medium uppercase tracking-wide text-ink-400">Seu contrato</div>
+        <h1 className="font-display text-xl font-semibold tracking-[-0.02em] text-ink-900">
+          {contract.title}
+        </h1>
+        <p className="mt-0.5 text-sm text-ink-500">
+          Bem-vindo, {client?.name?.split(' ')[0]}. Acompanhe parcelas, saldo devedor, pagamentos e
+          simulações do seu contrato.
+        </p>
+      </div>
+
       {/* Progresso do contrato */}
       <Card>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-wider text-ink-400">
-              Andamento do contrato
-            </div>
-            <div className="num-display mt-1 text-3xl font-extrabold text-ink-900">
-              {pctPaid}% <span className="text-lg font-bold text-ink-400">quitado</span>
+            <div className="text-sm font-medium text-ink-500">Andamento do contrato</div>
+            <div className="num-display mt-1 text-3xl font-semibold text-ink-900">
+              {pctPaid}% <span className="text-base font-medium text-ink-400">concluído</span>
             </div>
           </div>
           <div className="text-right text-sm text-ink-500">
-            <span className="num-display font-bold text-ink-800">{paid}</span> de{' '}
-            <span className="num-display font-bold text-ink-800">{total}</span> parcelas pagas
+            <span className="num-display font-semibold text-ink-800">{paidCount}</span> pagamentos realizados
           </div>
         </div>
-        <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-ink-100">
+        <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-ink-100">
           <div className="bg-brand-gradient h-full rounded-full" style={{ width: `${Math.max(pctPaid, 2)}%` }} />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-ink-500">
+          <span className="inline-flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${entradaDone ? 'bg-pos-500' : 'bg-ink-300'}`} />
+            Entrada: <b className="font-semibold text-ink-700">{entradaDone ? 'concluída' : `${paidDown} de ${downRows.length} pagas`}</b>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-brand-500" />
+            Financiamento: <b className="font-semibold text-ink-700">{paidFin} de {finRows.length} parcelas pagas</b>
+          </span>
         </div>
       </Card>
 
-      {/* Indicadores */}
+      {/* Resumo financeiro */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Saldo atual" value={brl(state.currentBalance)} accent />
+        <StatCard label="Saldo devedor atual" value={brl(state.currentBalance)} accent />
         <StatCard label="Total já pago" value={brl(state.totalPaid)} tone="pos" />
         <StatCard
           label="Próxima parcela"
           value={brl(state.currentInstallmentValue)}
           hint={state.nextInstallmentNumber ? `#${state.nextInstallmentNumber} · ${formatDateBR(state.nextInstallmentDueDate)}` : 'quitado'}
         />
-        <StatCard label="Em aberto (previsto)" value={brl(state.totalOpenProjected)} />
+        {/* Total estimado até o fim — com selo de estimativa */}
+        <div className="card p-5">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[12.5px] font-medium text-ink-400">Total estimado até o fim</span>
+            <InfoDot label="Considera a projeção de correção pelo IPCA. Valor pode variar conforme o índice oficial." />
+          </div>
+          <div className="num-display mt-2 text-[1.55rem] font-semibold leading-none text-ink-900">
+            {brl(state.totalOpenProjected)}
+          </div>
+          <div className="mt-1.5 inline-flex items-center rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-500">
+            Estimativa
+          </div>
+        </div>
       </div>
 
       {/* Conteúdo principal em duas colunas */}
       <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
+        {/* Coluna principal: pagamento + simulador */}
         <div className="space-y-5 lg:col-span-2">
-          {contract.clientNotes && <Notice>{contract.clientNotes}</Notice>}
           <PixBlock calc={calc} pix={pix} />
-          <SaldoDevedorChart calc={calc} />
+
+          {state.nextInstallmentNumber && (
+            <Card className="card-hover border-brand-200 bg-brand-50/40">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="max-w-md">
+                  <h3 className="font-display text-base font-semibold text-ink-900">
+                    Reduza suas próximas parcelas
+                  </h3>
+                  <p className="mt-1 text-sm text-ink-500">
+                    Simule um pagamento extra e veja como ele pode reduzir seu saldo devedor, suas
+                    próximas parcelas e o total estimado do contrato.
+                  </p>
+                </div>
+                <Button onClick={onSimular}>Simular economia</Button>
+              </div>
+            </Card>
+          )}
         </div>
 
+        {/* Coluna lateral: próximas parcelas + histórico + contrato */}
         <div className="space-y-5">
           <Card className="p-0">
             <div className="flex items-center justify-between border-b border-ink-100 px-5 py-3.5">
-              <h3 className="font-display text-base font-bold text-ink-900">Próximas parcelas</h3>
+              <h3 className="font-display text-base font-semibold text-ink-900">Próximas parcelas</h3>
               <button onClick={onVerParcelas} className="text-sm font-semibold text-brand-600 hover:underline">
                 Ver todas
               </button>
             </div>
             <div className="divide-y divide-ink-100">
-              {upcoming.map((r) => (
-                <div key={r.number} className="flex items-center justify-between px-5 py-2.5">
+              {upcoming.map((r, i) => (
+                <div
+                  key={r.number}
+                  className={`flex items-center justify-between px-5 py-2.5 ${i === 0 ? 'bg-brand-50/50' : ''}`}
+                >
                   <div>
-                    <div className="text-sm font-semibold text-ink-800">
+                    <div className="flex items-center gap-1.5 text-sm font-semibold text-ink-800">
                       Parcela {r.number}
+                      {i === 0 && (
+                        <span className="rounded-full bg-brand-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-brand-700">
+                          Próxima
+                        </span>
+                      )}
                       {r.correction && (
-                        <span className="ml-1.5 rounded-full bg-warn-50 px-1.5 py-0.5 text-[9px] font-bold text-warn-700">
+                        <span className="rounded-full bg-warn-50 px-1.5 py-0.5 text-[9px] font-bold text-warn-700">
                           IPCA +{pct(r.correction.ipca)}
                         </span>
                       )}
                     </div>
                     <div className="text-xs text-ink-400">{formatDateBR(r.dueDate)}</div>
                   </div>
-                  <span className="num-display text-sm font-bold text-ink-900">{brl(r.value)}</span>
+                  <span className={`num-display text-sm font-semibold ${i === 0 ? 'text-brand-700' : 'text-ink-800'}`}>
+                    {brl(r.value)}
+                  </span>
                 </div>
               ))}
             </div>
           </Card>
 
-          {state.nextInstallmentNumber && (
-            <Card className="card-hover bg-brand-50/40 ring-1 ring-brand-100">
-              <div className="font-display font-bold text-ink-900">Quer reduzir suas parcelas?</div>
-              <div className="mt-1 text-sm text-ink-500">
-                Pague um valor extra e diminua o saldo e as próximas parcelas — ou quite as últimas com desconto de IPCA.
+          {recentPayments.length > 0 && (
+            <Card className="p-0">
+              <div className="border-b border-ink-100 px-5 py-3.5">
+                <h3 className="font-display text-base font-semibold text-ink-900">Histórico recente</h3>
               </div>
-              <Button onClick={onSimular} className="mt-3 w-full">
-                Simular pagamento
-              </Button>
+              <div className="divide-y divide-ink-100">
+                {recentPayments.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between px-5 py-2.5">
+                    <div>
+                      <div className="text-sm font-semibold text-ink-800">
+                        {p.installmentType === 'entrada' ? 'Entrada' : 'Parcela'} {p.installmentNumber}
+                      </div>
+                      <div className="text-xs text-ink-400">{formatDateBR(p.paymentDate)}</div>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <span className="num-display text-sm font-semibold text-ink-800">{brl(p.amount)}</span>
+                      <Badge tone="pos">Pago</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </Card>
           )}
+
+          <Card>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="font-display text-base font-semibold text-ink-900">Informações do contrato</h3>
+              <button onClick={onVerContrato} className="text-sm font-semibold text-brand-600 hover:underline">
+                Detalhes
+              </button>
+            </div>
+            <Row label="Valor total da compra" value={brl(contract.totalValue)} />
+            <Row label="Entrada" value={`${brl(contract.downPaymentValue)} em ${contract.downPaymentInstallments}x`} />
+            <Row label="Valor financiado" value={brl(contract.financedValue)} />
+            <Row
+              label="Próxima correção (estimada)"
+              value={state.nextCorrection ? formatDateBR(state.nextCorrection.date) : '—'}
+            />
+          </Card>
         </div>
       </div>
     </div>
@@ -254,8 +390,12 @@ function PixBlock({
   const fileRef = useRef<HTMLInputElement>(null)
   const [sent, setSent] = useState(false)
 
+  // Considera placeholder/teste quando não há chave ou termina em "@local".
+  const hasRealPix = !!pix?.pixKey && !pix.pixKey.toLowerCase().endsWith('@local')
+  const nextRow = calc.schedule.rows.find((r) => r.number === state.nextInstallmentNumber)
+
   function copy() {
-    if (!pix?.pixKey) return
+    if (!hasRealPix || !pix) return
     navigator.clipboard?.writeText(pix.pixKey)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -275,7 +415,7 @@ function PixBlock({
   if (!state.nextInstallmentNumber) {
     return (
       <Card className="bg-pos-50 ring-1 ring-pos-500/20">
-        <h2 className="font-display text-lg font-bold text-pos-700">Contrato quitado</h2>
+        <h2 className="font-display text-lg font-semibold text-pos-700">Contrato quitado</h2>
         <p className="mt-1 text-sm text-ink-600">Todas as parcelas foram pagas.</p>
       </Card>
     )
@@ -283,48 +423,60 @@ function PixBlock({
 
   return (
     <Card className="overflow-hidden p-0">
-      <div className="bg-brand-gradient relative overflow-hidden px-6 py-7 text-white">
-        <div className="text-sm font-medium text-brand-100">Valor a pagar agora</div>
-        <div className="num-display mt-1.5 text-5xl font-extrabold tracking-tight">
+      {/* Faixa de valor — índigo discreto */}
+      <div className="bg-brand-gradient px-5 py-5 text-white">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-medium text-white/85">Valor a pagar agora</span>
+          {nextRow && (
+            <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-white">
+              {INSTALLMENT_STATUS_LABEL[nextRow.status]}
+            </span>
+          )}
+        </div>
+        <div className="num-display mt-1 text-4xl font-semibold tracking-tight">
           {brl(state.currentInstallmentValue)}
         </div>
-        <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-sm text-white backdrop-blur">
+        <div className="mt-1 text-sm text-white/85">
           Parcela {state.nextInstallmentNumber} · vence em {formatDateBR(state.nextInstallmentDueDate)}
         </div>
       </div>
-      <div className="space-y-4 p-5">
+
+      {/* Corpo compacto: Pix + comprovante lado a lado no desktop */}
+      <div className="grid gap-4 p-5 sm:grid-cols-2">
         <div>
-          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-ink-500">
-            Chave Pix
-          </div>
+          <div className="mb-1.5 text-xs font-medium text-ink-500">Chave Pix</div>
           <div className="flex items-center gap-2">
-            <div className="tnum flex-1 truncate rounded-lg bg-ink-50 px-3 py-2.5 text-sm text-ink-900">
-              {pix?.pixKey || 'Aguardando chave do vendedor'}
+            <div
+              className={`tnum min-w-0 flex-1 truncate rounded-[10px] bg-ink-50 px-3 py-2.5 text-sm ${hasRealPix ? 'text-ink-900' : 'italic text-ink-400'}`}
+            >
+              {hasRealPix ? pix!.pixKey : 'Chave Pix ainda não informada'}
             </div>
-            <Button variant="secondary" onClick={copy} disabled={!pix?.pixKey}>
+            <Button variant="secondary" onClick={copy} disabled={!hasRealPix} aria-label="Copiar chave Pix">
               {copied ? 'Copiado!' : 'Copiar'}
             </Button>
           </div>
-          {pix && (
+          {hasRealPix ? (
             <p className="mt-1.5 text-xs text-ink-500">
-              {pix.receiverName} · {pix.bankName}
+              {pix!.receiverName}
+              {pix!.bankName ? ` · ${pix!.bankName}` : ''}
             </p>
+          ) : (
+            <p className="mt-1.5 text-xs text-ink-400">O vendedor ainda vai cadastrar a chave Pix.</p>
           )}
         </div>
 
-        <div className="rounded-lg border border-dashed border-ink-300 p-4 text-center">
-          <p className="text-sm text-ink-600">
-            Após o pagamento, envie o comprovante para conferência.
-          </p>
+        <div>
+          <div className="mb-1.5 text-xs font-medium text-ink-500">Comprovante</div>
           <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={onFile} />
           <Button
             variant="secondary"
-            size="sm"
-            className="mt-2"
+            className="w-full"
             onClick={() => fileRef.current?.click()}
+            aria-label="Enviar comprovante de pagamento"
           >
-            {sent ? 'Comprovante enviado ✓' : 'Enviar comprovante'}
+            {sent ? 'Comprovante enviado' : 'Enviar comprovante'}
           </Button>
+          <p className="mt-1.5 text-xs text-ink-400">Após o pagamento, envie para conferência.</p>
         </div>
       </div>
     </Card>
@@ -332,13 +484,9 @@ function PixBlock({
 }
 
 // ---------------------------------------------------------------------------
-// Aba: Pagar a mais (simulador com dois modos)
+// Aba: Pagar a mais (pagamento extra que reduz o saldo devedor)
 // ---------------------------------------------------------------------------
-type SimMode = 'reduzir' | 'antecipar'
-
 function ExtraBlock({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
-  const [mode, setMode] = useState<SimMode>('reduzir')
-
   if (!calc.state.nextInstallmentNumber) {
     return (
       <Card>
@@ -346,41 +494,7 @@ function ExtraBlock({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
       </Card>
     )
   }
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          onClick={() => setMode('reduzir')}
-          className={`rounded-xl px-3 py-3 text-left text-sm font-semibold transition-all ${
-            mode === 'reduzir'
-              ? 'bg-brand-600 text-white shadow-[var(--shadow-brand)]'
-              : 'bg-white text-ink-600 ring-1 ring-ink-200'
-          }`}
-        >
-          Reduzir minhas parcelas
-          <span className={`mt-0.5 block text-xs font-normal ${mode === 'reduzir' ? 'text-brand-100' : 'text-ink-400'}`}>
-            pago um extra e as próximas caem
-          </span>
-        </button>
-        <button
-          onClick={() => setMode('antecipar')}
-          className={`rounded-xl px-3 py-3 text-left text-sm font-semibold transition-all ${
-            mode === 'antecipar'
-              ? 'bg-brand-600 text-white shadow-[var(--shadow-brand)]'
-              : 'bg-white text-ink-600 ring-1 ring-ink-200'
-          }`}
-        >
-          Quitar últimas parcelas
-          <span className={`mt-0.5 block text-xs font-normal ${mode === 'antecipar' ? 'text-brand-100' : 'text-ink-400'}`}>
-            com desconto do IPCA futuro
-          </span>
-        </button>
-      </div>
-
-      {mode === 'reduzir' ? <ReduzirSim calc={calc} /> : <AnteciparSim calc={calc} />}
-    </div>
-  )
+  return <ReduzirSim calc={calc} />
 }
 
 function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
@@ -612,175 +726,6 @@ function DiscountBreakdown({ sim }: { sim: ReturnType<typeof simulateExtraPaymen
         <span className="num-display text-base font-bold text-pos-700">{brl(sim.netIpcaSavings)}</span>
       </div>
     </div>
-  )
-}
-
-function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
-  const [count, setCount] = useState(1)
-  const sim = useMemo(
-    () => simulateAnticipateLast(calc.contract, calc.scheduleOpts, count),
-    [calc, count],
-  )
-  const [copied, setCopied] = useState(false)
-
-  // Dados para o mapa visual das parcelas do financiamento.
-  const finRows = calc.schedule.rows
-  const openFin = finRows.filter((r) => r.status !== 'paga')
-  const nextNum = openFin[0]?.number
-  const quitRows = openFin.slice(openFin.length - sim.count)
-  const quitSet = new Set(quitRows.map((r) => r.number))
-  const lastRow = quitRows[quitRows.length - 1]
-
-  function copyTotal() {
-    navigator.clipboard?.writeText(sim.payToday.toFixed(2))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  return (
-    <Card>
-      <h3 className="font-display text-base font-bold text-ink-900">
-        Quitar as últimas parcelas com desconto de IPCA
-      </h3>
-      <p className="mt-1 text-sm text-ink-500">
-        As últimas parcelas ainda vão receber vários reajustes. Quitando agora, você paga o valor de
-        hoje e economiza todo o IPCA que ainda não foi aplicado nelas. Isso encurta o seu contrato.
-      </p>
-
-      <div className="mt-4">
-        <label className="mb-1.5 block text-sm font-medium text-ink-700">
-          Quantas das últimas parcelas deseja quitar?
-        </label>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setCount((c) => Math.max(1, c - 1))}
-            className="h-11 w-11 shrink-0 rounded-xl bg-ink-100 text-xl font-bold text-ink-700 hover:bg-ink-200"
-          >
-            −
-          </button>
-          <div className="num-display flex-1 rounded-xl bg-ink-50 py-2.5 text-center text-2xl font-bold text-ink-900">
-            {sim.count}
-          </div>
-          <button
-            onClick={() => setCount((c) => Math.min(sim.maxCount, c + 1))}
-            className="h-11 w-11 shrink-0 rounded-xl bg-ink-100 text-xl font-bold text-ink-700 hover:bg-ink-200"
-          >
-            +
-          </button>
-        </div>
-        <div className="mt-1.5 text-xs text-ink-400">
-          Você tem {sim.maxCount} parcelas em aberto.
-        </div>
-      </div>
-
-      {/* Mapa visual das parcelas do financiamento */}
-      <div className="mt-5 rounded-2xl border border-ink-200 bg-ink-50/60 p-4">
-        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-ink-500">
-          <span className="inline-flex items-center gap-1.5">
-            <i className="h-3 w-3 rounded-[4px] bg-pos-100" /> paga
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <i className="h-3 w-3 rounded-[4px] bg-brand-500" /> próxima
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <i className="h-3 w-3 rounded-[4px] bg-ink-200" /> em aberto
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <i className="h-3 w-3 rounded-[4px] bg-pos-500" /> sendo quitada
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {finRows.map((r) => {
-            const isPaid = r.status === 'paga'
-            const isNext = r.number === nextNum
-            const isQuit = quitSet.has(r.number)
-            const cls = isQuit
-              ? 'bg-pos-500 text-white scale-110 shadow-sm'
-              : isNext
-                ? 'bg-brand-500 text-white'
-                : isPaid
-                  ? 'bg-pos-100 text-pos-700'
-                  : 'bg-ink-200 text-ink-400'
-            return (
-              <div
-                key={r.number}
-                title={`Parcela ${r.number} · ${brl(r.value)}`}
-                className={`flex h-7 w-7 items-center justify-center rounded-[6px] text-[10px] font-bold transition-all duration-200 ${cls}`}
-              >
-                {r.number}
-              </div>
-            )
-          })}
-        </div>
-        <div className="mt-3 text-center text-xs text-ink-500">
-          O fim do seu contrato vai de{' '}
-          <b className="text-ink-700">parcela {openFin[openFin.length - 1]?.number}</b> para{' '}
-          <b className="text-pos-700">
-            {sim.newLastInstallmentNumber ? `parcela ${sim.newLastInstallmentNumber}` : 'quitado'}
-          </b>
-          .
-        </div>
-      </div>
-
-      {/* Destaque da(s) parcela(s) sendo paga(s) */}
-      {lastRow && (
-        <div className="mt-4 flex items-center justify-between rounded-2xl bg-pos-50 p-4 ring-1 ring-pos-500/20">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wider text-pos-700">
-              {sim.count === 1 ? 'Parcela que você quita' : `Parcelas ${quitRows[0].number} a ${lastRow.number}`}
-            </div>
-            <div className="num-display mt-0.5 text-lg font-bold text-ink-900">
-              {sim.count === 1 ? `Parcela ${lastRow.number}` : `${sim.count} parcelas`} ·{' '}
-              {formatDateBR(lastRow.dueDate)}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-ink-400 line-through">{brl(sim.futureValueWithIpca)}</div>
-            <div className="num-display text-xl font-extrabold text-pos-600">{brl(sim.payToday)}</div>
-          </div>
-        </div>
-      )}
-
-      <div className="mt-4 space-y-3">
-        <div className="rounded-xl bg-ink-50 p-4">
-          <Row label="Valor cheio dessas parcelas no futuro (com IPCA)" value={brl(sim.futureValueWithIpca)} />
-          <Row label="Você paga hoje" value={brl(sim.payToday)} strong />
-        </div>
-
-        <div className="rounded-xl border border-pos-500/20 bg-pos-50 p-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-pos-700">
-            Desconto de IPCA (você economiza)
-          </div>
-          <div className="num-display mt-1 text-3xl font-extrabold text-pos-600">
-            {brl(sim.ipcaDiscount)}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl bg-ink-50 p-3">
-            <div className="text-xs text-ink-500">Parcelas restantes</div>
-            <div className="num-display font-bold text-ink-900">
-              {calc.state.financingRemaining} → {sim.remainingAfter}
-            </div>
-          </div>
-          <div className="rounded-xl bg-brand-50 p-3 ring-1 ring-brand-200">
-            <div className="text-xs text-brand-700">Novo fim do contrato</div>
-            <div className="num-display font-bold text-brand-800">
-              {sim.newLastInstallmentDate ? formatDateBR(sim.newLastInstallmentDate) : 'quitado'}
-            </div>
-          </div>
-        </div>
-
-        <Button onClick={copyTotal} className="w-full">
-          {copied ? 'Total copiado!' : `Gerar total a pagar (${brl(sim.payToday)})`}
-        </Button>
-
-        <p className="text-center text-xs text-ink-400">
-          Esta é uma simulação. Para confirmar, pague o valor acima e envie o comprovante —
-          o vendedor dará baixa nas últimas parcelas.
-        </p>
-      </div>
-    </Card>
   )
 }
 
