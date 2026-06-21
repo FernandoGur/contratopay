@@ -32,7 +32,7 @@ export function makeSeed(): Database {
     name: 'Cliente do Terreno',
     document: '000.000.000-00',
     phone: '(85) 90000-0000',
-    email: 'cliente@local',
+    email: 'cliente@contratopay.com',
     address: 'Lote 00, Loteamento Exemplo',
     status: 'ativo' as const,
     notes: 'Contrato de venda de terreno.',
