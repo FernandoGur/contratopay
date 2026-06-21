@@ -294,14 +294,19 @@ function InicioDashboard({
 
           {state.nextInstallmentNumber && (
             <Card className="card-hover border-brand-200 bg-brand-50/40">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="max-w-md">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-600">
+                  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m3 17 6-6 4 4 8-8" />
+                    <path d="M17 7h4v4" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
                   <h3 className="font-display text-base font-semibold text-ink-900">
                     Reduza suas próximas parcelas
                   </h3>
-                  <p className="mt-1 text-sm text-ink-500">
-                    Simule um pagamento extra e veja como ele pode reduzir seu saldo devedor, suas
-                    próximas parcelas e o total estimado do contrato.
+                  <p className="mt-0.5 text-sm text-ink-500">
+                    Simule um pagamento extra e veja o saldo e as parcelas caírem.
                   </p>
                 </div>
                 <Button onClick={onSimular}>Simular economia</Button>
@@ -426,6 +431,18 @@ function InicioDashboard({
 // ---------------------------------------------------------------------------
 // Bloco principal — Pix
 // ---------------------------------------------------------------------------
+const MESES_EXTENSO = [
+  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+]
+
+/** "2026-06-22" → "22 de junho de 2026" */
+function formatDateLong(iso: string | null | undefined) {
+  if (!iso) return '—'
+  const [y, m, d] = iso.split('-')
+  return `${Number(d)} de ${MESES_EXTENSO[Number(m) - 1]} de ${y}`
+}
+
 function PixBlock({
   calc,
   pix,
@@ -485,21 +502,21 @@ function PixBlock({
           {brl(state.currentInstallmentValue)}
         </div>
         <div className="mt-1 text-sm text-white/85">
-          Parcela {state.nextInstallmentNumber} · vence em {formatDateBR(state.nextInstallmentDueDate)}
+          Parcela {state.nextInstallmentNumber} · vence em {formatDateLong(state.nextInstallmentDueDate)}
         </div>
       </div>
 
       {/* Corpo compacto: Pix + comprovante lado a lado no desktop */}
       <div className="grid gap-4 p-5 sm:grid-cols-2">
         <div>
-          <div className="mb-1.5 text-xs font-medium text-ink-500">Chave Pix</div>
+          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Chave Pix</div>
           <div className="flex items-center gap-2">
             <div
               className={`tnum min-w-0 flex-1 truncate rounded-[10px] bg-ink-50 px-3 py-2.5 text-sm ${hasRealPix ? 'text-ink-900' : 'italic text-ink-400'}`}
             >
               {hasRealPix ? pix!.pixKey : 'Chave Pix ainda não informada'}
             </div>
-            <Button variant="secondary" onClick={copy} disabled={!hasRealPix} aria-label="Copiar chave Pix">
+            <Button onClick={copy} disabled={!hasRealPix} aria-label="Copiar chave Pix">
               {copied ? 'Copiado!' : 'Copiar'}
             </Button>
           </div>
@@ -514,7 +531,7 @@ function PixBlock({
         </div>
 
         <div>
-          <div className="mb-1.5 text-xs font-medium text-ink-500">Comprovante</div>
+          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Comprovante</div>
           <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={onFile} />
           <Button
             variant="secondary"
@@ -522,7 +539,14 @@ function PixBlock({
             onClick={() => fileRef.current?.click()}
             aria-label="Enviar comprovante de pagamento"
           >
-            {sent ? 'Comprovante enviado' : 'Enviar comprovante'}
+            <span className="inline-flex items-center gap-2">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <path d="m7 10 5 5 5-5" />
+                <path d="M12 15V3" />
+              </svg>
+              {sent ? 'Comprovante enviado' : 'Enviar comprovante'}
+            </span>
           </Button>
           <p className="mt-1.5 text-xs text-ink-400">Após o pagamento, envie para conferência.</p>
         </div>
