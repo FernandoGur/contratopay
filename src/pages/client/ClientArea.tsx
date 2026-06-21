@@ -10,7 +10,7 @@ import {
 import { useCurrentUser, useDb } from '@/lib/store'
 import { brl, num, parseMoney, pct } from '@/lib/format'
 import { formatDateBR, formatMonthBR } from '@/lib/dates'
-import { simulateAnticipateLast, simulateExtraPayment } from '@/lib/finance'
+import { generateSchedule, simulateAnticipateLast, simulateExtraPayment } from '@/lib/finance'
 import {
   Badge,
   Button,
@@ -302,7 +302,7 @@ function InicioDashboard({
                       )}
                       {r.correction && (
                         <span className="rounded-full bg-brand-50 px-1.5 py-0.5 text-[9px] font-bold text-brand-700">
-                          inflação {pct(r.correction.ipca)}
+                          infl. est. ~{pct(r.correction.ipca)}
                         </span>
                       )}
                     </div>
@@ -1041,10 +1041,10 @@ function ParcelasTab({
               {r.correction && (
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 bg-brand-50 px-4 py-2">
                   <span className="text-xs font-semibold text-brand-800">
-                    Atualização pela inflação · IPCA {pct(r.correction.ipca)} · {formatDateBR(r.dueDate)}
+                    Atualização estimada pela inflação · IPCA est. ~{pct(r.correction.ipca)} · {formatDateBR(r.dueDate)}
                   </span>
                   <span className="num-display text-xs font-medium text-brand-700">
-                    saldo atualizado: {brl(r.balanceBefore)}
+                    saldo estimado: {brl(r.balanceBefore)}
                   </span>
                 </div>
               )}
@@ -1138,8 +1138,17 @@ function PagamentosClientTab({ calc }: { calc: NonNullable<ReturnType<typeof get
 function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
   const [, mm, dd] = calc.contract.financingStartDate.split('-')
   const anniversary = `${dd}/${mm}`
-  const corrections = calc.schedule.corrections
+  const [forecast, setForecast] = useState(calc.contract.forecastAnnualIpca)
+  const [customText, setCustomText] = useState('')
+
+  // Cenário de inflação editável (simulação) — recalcula a projeção localmente.
+  const simSchedule = useMemo(
+    () => generateSchedule(calc.contract, { ...calc.scheduleOpts, forecastAnnualIpca: forecast }),
+    [calc, forecast],
+  )
+  const corrections = simSchedule.corrections
   const nextDate = (corrections.find((c) => !c.isOfficial) ?? corrections[0])?.date
+  const presets = [0.04, 0.045, 0.05]
 
   return (
     <div className="space-y-4">
@@ -1150,12 +1159,55 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
         </div>
         <p className="mt-1 text-sm text-brand-800/90">
           A cada <b>12 meses</b> (todo dia {anniversary}), o valor é apenas <b>atualizado pela inflação
-          oficial (IPCA)</b> — para manter o valor real do que foi combinado, como acontece no reajuste
-          de um aluguel. Abaixo, a estimativa com IPCA de {pct(calc.contract.forecastAnnualIpca)} ao ano.
+          oficial (IPCA)</b> — para manter o valor real do que foi combinado, como no reajuste de um
+          aluguel. Os números abaixo são uma <b>estimativa</b> — a inflação real pode variar.
         </p>
       </div>
 
-      <SaldoDevedorChart calc={calc} />
+      {/* Cenário de inflação — editável (simulação conservadora) */}
+      <Card>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-display text-base font-semibold text-ink-900">Estimativa de inflação</h3>
+          <Badge tone="muted">Simulação</Badge>
+        </div>
+        <p className="mt-0.5 text-sm text-ink-500">
+          Use uma estimativa conservadora. Veja como ficaria com diferentes cenários de inflação ao ano.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          {presets.map((p) => (
+            <button
+              key={p}
+              onClick={() => { setForecast(p); setCustomText('') }}
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+                Math.abs(forecast - p) < 0.0001 && !customText
+                  ? 'bg-brand-600 text-white'
+                  : 'bg-ink-100 text-ink-600 hover:bg-ink-200'
+              }`}
+            >
+              {pct(p)}{p === 0.05 ? ' · conservador' : ''}
+            </button>
+          ))}
+          <div className="flex items-center gap-1 rounded-lg bg-ink-100 px-2 py-1">
+            <input
+              inputMode="decimal"
+              value={customText}
+              onChange={(e) => {
+                setCustomText(e.target.value)
+                const v = parseFloat(e.target.value.replace(',', '.'))
+                if (!Number.isNaN(v) && v >= 0 && v <= 50) setForecast(v / 100)
+              }}
+              placeholder="outro"
+              className="tnum w-14 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none"
+            />
+            <span className="text-sm text-ink-500">%</span>
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-ink-400">
+          Esta é uma simulação. A correção oficial seguirá o IPCA divulgado no período.
+        </p>
+      </Card>
+
+      <SaldoDevedorChart schedule={simSchedule} financedValue={calc.contract.financedValue} />
 
       <div className="px-1 pt-1">
         <h3 className="font-display text-base font-bold text-ink-900">Atualização pela inflação, ano a ano</h3>
@@ -1219,12 +1271,18 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
 }
 
 /** Gráfico (SVG) do saldo devedor caindo ao longo do contrato, com os reajustes marcados. */
-function SaldoDevedorChart({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
-  const rows = calc.schedule.rows
+function SaldoDevedorChart({
+  schedule,
+  financedValue,
+}: {
+  schedule: ReturnType<typeof generateSchedule>
+  financedValue: number
+}) {
+  const rows = schedule.rows
   if (rows.length === 0) return null
 
   const series = rows.map((r) => r.balanceBefore)
-  const maxV = Math.max(calc.contract.financedValue, ...series)
+  const maxV = Math.max(financedValue, ...series)
   const n = series.length
 
   const W = 340
@@ -1238,12 +1296,12 @@ function SaldoDevedorChart({ calc }: { calc: NonNullable<ReturnType<typeof getCo
   const line = series.map((v, i) => `${i ? 'L' : 'M'}${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(' ')
   const area = `${line} L${xAt(n - 1).toFixed(1)},${H - padBot} L${xAt(0).toFixed(1)},${H - padBot} Z`
 
-  const marks = calc.schedule.corrections
+  const marks = schedule.corrections
     .map((c) => {
       const i = rows.findIndex((r) => r.number === c.fromInstallment)
       return i >= 0 ? { i, c } : null
     })
-    .filter((m): m is { i: number; c: (typeof calc.schedule.corrections)[number] } => m != null)
+    .filter((m): m is { i: number; c: (typeof schedule.corrections)[number] } => m != null)
 
   const kFmt = (v: number) => `${Math.round(v / 1000)} mil`
 
@@ -1269,7 +1327,7 @@ function SaldoDevedorChart({ calc }: { calc: NonNullable<ReturnType<typeof getCo
             <line x1={xAt(i)} y1={yAt(series[i])} x2={xAt(i)} y2={H - padBot} stroke="#cdd6e6" strokeWidth="1" strokeDasharray="2 2" />
             <circle cx={xAt(i)} cy={yAt(series[i])} r="3.5" fill="#5b5bd6" stroke="#fff" strokeWidth="1.5" />
             <text x={xAt(i)} y={yAt(series[i]) - 6} textAnchor="middle" className="fill-brand-600" style={{ fontSize: 8, fontWeight: 700 }}>
-              +{pct(c.ipca)}
+              ~{pct(c.ipca)}
             </text>
             <text x={xAt(i)} y={H - 14} textAnchor="middle" className="fill-ink-500" style={{ fontSize: 8 }}>
               {formatMonthBR(c.date)}
@@ -1281,7 +1339,7 @@ function SaldoDevedorChart({ calc }: { calc: NonNullable<ReturnType<typeof getCo
         ))}
       </svg>
       <div className="mt-1 flex justify-between text-xs text-ink-400">
-        <span>início {brl(calc.contract.financedValue)}</span>
+        <span>início {brl(financedValue)}</span>
         <span>fim do contrato</span>
       </div>
     </Card>
