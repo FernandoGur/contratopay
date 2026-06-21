@@ -47,11 +47,11 @@ export function StatCard({
           ? 'text-neg-700'
           : 'text-ink-900'
   return (
-    <div className={`card card-hover p-5 ${accent ? 'ring-1 ring-brand-200 bg-brand-50/50' : ''}`}>
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
-        {label}
-      </div>
-      <div className={`num-display mt-2.5 text-[1.7rem] font-bold leading-none ${toneText}`}>
+    <div
+      className={`card p-5 ${accent ? 'ring-2 ring-brand-100 border-brand-200' : ''}`}
+    >
+      <div className="text-[12.5px] font-medium text-ink-400">{label}</div>
+      <div className={`num-display mt-2 text-[1.55rem] font-semibold leading-none ${toneText}`}>
         {value}
       </div>
       {hint && <div className="mt-1.5 text-sm text-ink-500">{hint}</div>}
@@ -64,10 +64,10 @@ export function StatCard({
 // ---------------------------------------------------------------------------
 const BADGE_TONES: Record<string, string> = {
   pos: 'bg-pos-50 text-pos-700 ring-pos-500/20',
-  warn: 'bg-warn-50 text-warn-700 ring-warn-500/20',
+  warn: 'bg-warn-50 text-warn-700 ring-warn-500/25',
   neg: 'bg-neg-50 text-neg-700 ring-neg-500/20',
   info: 'bg-brand-50 text-brand-700 ring-brand-500/20',
-  muted: 'bg-ink-100 text-ink-600 ring-ink-300/40',
+  muted: 'bg-ink-100 text-ink-600 ring-ink-300/50',
 }
 
 export function Badge({
@@ -79,7 +79,7 @@ export function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${BADGE_TONES[tone]}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${BADGE_TONES[tone]}`}
     >
       {children}
     </span>
@@ -101,10 +101,11 @@ export function Button({
   ...props
 }: ButtonProps) {
   const variants = {
+    // Gradiente índigo + brilho interno (registro premium "Stripe-like")
     primary:
-      'bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 shadow-[var(--shadow-brand)] hover:shadow-[0_10px_28px_-6px_rgba(35,71,232,0.55)]',
+      'text-white bg-[linear-gradient(180deg,#6366f1,#5b5bd6)] shadow-[0_1px_2px_rgba(79,70,229,0.4),inset_0_1px_0_rgba(255,255,255,0.18)] hover:bg-[linear-gradient(180deg,#5b5bd6,#4d49c4)] disabled:opacity-50',
     secondary:
-      'bg-white text-ink-700 ring-1 ring-inset ring-ink-200 hover:bg-ink-50 hover:ring-ink-300',
+      'bg-white text-ink-700 ring-1 ring-inset ring-ink-200 shadow-[0_1px_1px_rgba(16,18,28,0.03)] hover:bg-ink-50 hover:ring-ink-300',
     ghost: 'text-brand-700 hover:bg-brand-50',
     danger: 'bg-neg-500 text-white hover:bg-neg-700',
   }
@@ -114,7 +115,7 @@ export function Button({
   }
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-150 active:scale-[0.98] disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold transition-all duration-150 active:scale-[0.98] disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     />
   )
@@ -134,7 +135,7 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-ink-700">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-ink-600">{label}</span>
       {children}
       {hint && <span className="mt-1 block text-xs text-ink-500">{hint}</span>}
     </label>
@@ -142,7 +143,7 @@ export function Field({
 }
 
 const inputCls =
-  'w-full rounded-xl border border-ink-200 bg-ink-50/60 px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 transition-colors focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-500/10'
+  'w-full rounded-[10px] border border-ink-200 bg-white px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 shadow-[0_1px_1px_rgba(16,18,28,0.03)] transition-colors focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/12'
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputCls} tnum ${props.className ?? ''}`} />
@@ -244,7 +245,7 @@ export function Notice({
       ? 'bg-warn-50 text-warn-700 ring-warn-500/20'
       : 'bg-brand-50 text-brand-800 ring-brand-500/20'
   return (
-    <div className={`rounded-lg px-4 py-3 text-sm ring-1 ring-inset ${cls}`}>
+    <div className={`rounded-[10px] px-4 py-3 text-sm ring-1 ring-inset ${cls}`}>
       {children}
     </div>
   )

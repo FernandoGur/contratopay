@@ -1,55 +1,61 @@
 @import 'tailwindcss';
 
+/* =========================================================================
+   ContratoPay — Design tokens (redesign "Elegant SaaS / v5")
+   Paleta índigo (iris) + neutros frios + verde de valor.
+   Trocar aqui reflete em todo o app.
+   ========================================================================= */
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  --font-display: 'Inter Tight', 'Inter', system-ui, sans-serif;
 
-  /* Marca — azul vivo e caloroso (referência fintech / Azul) */
-  --color-brand-50: #eef4ff;
-  --color-brand-100: #dae6ff;
-  --color-brand-200: #bdd2ff;
-  --color-brand-300: #90b3ff;
-  --color-brand-400: #5d89fc;
-  --color-brand-500: #3a63f6;
-  --color-brand-600: #2347e8;
-  --color-brand-700: #1c35d4;
-  --color-brand-800: #1d2eab;
-  --color-brand-900: #1d2d87;
-  --color-brand-950: #161d52;
+  /* Marca — índigo / iris */
+  --color-brand-50: #eeeefb;
+  --color-brand-100: #e4e4fb;
+  --color-brand-200: #d4d6f7;
+  --color-brand-300: #b7b9f1;
+  --color-brand-400: #9092ec;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #5b5bd6;
+  --color-brand-700: #4d49c4;
+  --color-brand-800: #3e3aa0;
+  --color-brand-900: #333080;
+  --color-brand-950: #20204c;
 
-  /* Neutros levemente azulados (não cinza morto) */
-  --color-ink-50: #f7f9fc;
-  --color-ink-100: #eef2f9;
-  --color-ink-200: #e3e9f3;
-  --color-ink-300: #ccd6e6;
-  --color-ink-400: #92a1bd;
-  --color-ink-500: #65748f;
-  --color-ink-600: #4a5670;
-  --color-ink-700: #343e54;
-  --color-ink-800: #1f2839;
-  --color-ink-900: #121a2b;
+  /* Neutros frios (cinza levemente azulado, não morto) */
+  --color-ink-50: #f8f9fb;
+  --color-ink-100: #f1f2f5;
+  --color-ink-200: #ecedf1;
+  --color-ink-300: #dcdee4;
+  --color-ink-400: #9499a3;
+  --color-ink-500: #71757f;
+  --color-ink-600: #565a65;
+  --color-ink-700: #3c3f49;
+  --color-ink-800: #25272e;
+  --color-ink-900: #18191f;
 
-  /* Positivo / atenção / negativo */
-  --color-pos-50: #e9faf1;
-  --color-pos-100: #c9f3dd;
-  --color-pos-500: #10b981;
-  --color-pos-600: #059669;
-  --color-pos-700: #047857;
-  --color-warn-50: #fff6e8;
-  --color-warn-500: #f59e0b;
-  --color-warn-700: #b45309;
-  --color-neg-50: #fdecec;
-  --color-neg-500: #ef4444;
-  --color-neg-700: #b91c1c;
+  /* Positivo (verde de valor) / atenção / negativo */
+  --color-pos-50: #e7f4ed;
+  --color-pos-100: #c7e9d6;
+  --color-pos-500: #16a34a;
+  --color-pos-600: #1a8f5c;
+  --color-pos-700: #136c46;
+  --color-warn-50: #fbf1de;
+  --color-warn-500: #d9920b;
+  --color-warn-700: #b5780f;
+  --color-neg-50: #fcecec;
+  --color-neg-500: #e5484d;
+  --color-neg-700: #c0383c;
 
-  /* Raios e sombras premium */
-  --radius-xl: 1rem;
-  --radius-2xl: 1.25rem;
-  --radius-3xl: 1.5rem;
+  /* Raios — mais contidos ("instrumento") */
+  --radius-xl: 0.625rem;
+  --radius-2xl: 0.75rem;
+  --radius-3xl: 1rem;
 
-  --shadow-card: 0 1px 2px rgba(18, 26, 43, 0.04), 0 4px 16px -4px rgba(18, 26, 43, 0.08);
-  --shadow-card-hover: 0 2px 4px rgba(18, 26, 43, 0.05), 0 12px 28px -8px rgba(29, 45, 135, 0.18);
-  --shadow-brand: 0 8px 24px -6px rgba(35, 71, 232, 0.45);
+  /* Sombras — sutis, em camadas */
+  --shadow-card: 0 1px 2px rgba(16, 18, 28, 0.04), 0 1px 3px rgba(16, 18, 28, 0.05);
+  --shadow-card-hover: 0 2px 4px rgba(16, 18, 28, 0.04), 0 10px 28px -10px rgba(16, 18, 28, 0.16);
+  --shadow-brand: 0 1px 2px rgba(79, 70, 229, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 @layer base {
@@ -58,16 +64,13 @@
   }
   body {
     margin: 0;
-    background:
-      radial-gradient(1200px 600px at 80% -10%, rgba(58, 99, 246, 0.06), transparent 60%),
-      radial-gradient(900px 500px at -10% 10%, rgba(58, 99, 246, 0.05), transparent 55%),
-      var(--color-ink-50);
+    background: var(--color-ink-50);
     color: var(--color-ink-800);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    letter-spacing: -0.011em;
+    letter-spacing: -0.012em;
   }
   h1, h2, h3 {
     font-family: var(--font-display);
@@ -75,13 +78,13 @@
   }
   /* Números financeiros: tabulares e com peso de display */
   .tnum {
-    font-variant-numeric: tabular-nums;
+    font-variant-numeric: tabular-nums lining-nums;
     letter-spacing: -0.02em;
   }
   .num-display {
     font-family: var(--font-display);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.025em;
   }
 }
 
@@ -97,13 +100,13 @@
   }
   .card-hover:hover {
     box-shadow: var(--shadow-card-hover);
-    border-color: var(--color-brand-200);
-    transform: translateY(-2px);
+    border-color: var(--color-ink-300);
+    transform: translateY(-1px);
   }
-  /* Gradiente de marca para heros e destaques */
+  /* Gradiente de marca para heros e destaques (índigo) */
   .bg-brand-gradient {
     background:
-      radial-gradient(120% 140% at 100% 0%, #5d89fc 0%, transparent 45%),
-      linear-gradient(135deg, #2347e8 0%, #1c35d4 55%, #1d2eab 100%);
+      radial-gradient(120% 140% at 100% 0%, #6f72e6 0%, transparent 45%),
+      linear-gradient(135deg, #6366f1 0%, #5b5bd6 55%, #4f46c9 100%);
   }
 }
