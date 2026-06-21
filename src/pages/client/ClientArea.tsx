@@ -20,7 +20,6 @@ import {
   Input,
   PAYMENT_STATUS_LABEL,
   Row,
-  StatCard,
 } from '@/components/ui'
 import { Logo } from '@/components/Logo'
 
@@ -183,7 +182,6 @@ function InicioDashboard({
   const finRows = calc.schedule.rows
   const paidDown = downRows.filter((r) => r.status === 'paga').length
   const paidFin = finRows.filter((r) => r.status === 'paga').length
-  const paidCount = paidDown + paidFin
   // % por VALOR pago (não por quantidade de parcelas).
   const pctPaid = Math.min(
     100,
@@ -198,56 +196,94 @@ function InicioDashboard({
 
   return (
     <div className="space-y-5">
-      {/* Contexto do contrato + boas-vindas (discreto) */}
-      <div>
-        <div className="text-[11px] font-medium uppercase tracking-wide text-ink-400">Seu contrato</div>
-        <h1 className="font-display text-xl font-semibold tracking-[-0.02em] text-ink-900">
+      {/* HERO — andamento do contrato (anel + números + composição da carteira) */}
+      <div className="card p-5 sm:p-6">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-400">Seu contrato</div>
+        <h1 className="font-display mt-0.5 text-xl font-bold tracking-[-0.025em] text-ink-900">
           {contract.title}
         </h1>
-        <p className="mt-0.5 text-sm text-ink-500">
-          Bem-vindo, {client?.name?.split(' ')[0]}. Acompanhe parcelas, saldo devedor, pagamentos e
-          simulações do seu contrato.
+        <p className="mt-1 text-sm text-ink-500">
+          Bem-vindo, {client?.name?.split(' ')[0]}. Acompanhe saldo, parcelas e pagamentos do seu contrato.
         </p>
-      </div>
 
-      {/* Progresso do contrato */}
-      <Card>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <div className="text-sm font-medium text-ink-500">Andamento do contrato</div>
-            <div className="num-display mt-1 text-3xl font-semibold text-ink-900">
-              {pctPaid}% <span className="text-base font-medium text-ink-400">do valor pago</span>
+        <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-7">
+          {/* anel de progresso */}
+          <div className="relative h-32 w-32 shrink-0 self-center sm:self-auto">
+            <svg viewBox="0 0 128 128" className="h-32 w-32">
+              <circle cx="64" cy="64" r="54" fill="none" stroke="#eef0f3" strokeWidth="13" />
+              <circle
+                cx="64"
+                cy="64"
+                r="54"
+                fill="none"
+                stroke="url(#cp-ring)"
+                strokeWidth="13"
+                strokeLinecap="round"
+                strokeDasharray={339.29}
+                strokeDashoffset={339.29 * (1 - Math.min(Math.max(pctPaid, 0), 100) / 100)}
+                transform="rotate(-90 64 64)"
+              />
+              <defs>
+                <linearGradient id="cp-ring" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stopColor="#6366f1" />
+                  <stop offset="1" stopColor="#5b5bd6" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="num-display text-[28px] font-extrabold leading-none text-ink-900">{pctPaid}%</span>
+              <span className="mt-0.5 text-[10px] font-semibold text-ink-400">quitado</span>
             </div>
           </div>
-          <div className="text-right text-sm text-ink-500">
-            <span className="num-display font-semibold text-ink-800">{brl(state.totalPaid)}</span>
-            <span className="block text-xs text-ink-400">de {brl(contract.totalValue)} · {paidCount} pagamentos</span>
+
+          {/* três números com hierarquia */}
+          <div className="grid flex-1 grid-cols-3 divide-x divide-ink-100">
+            <div className="pr-3 sm:pr-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-400">Saldo atual</div>
+              <div className="num-display mt-1.5 text-xl font-bold text-ink-900 sm:text-[22px]">{brl(state.currentBalance)}</div>
+              <div className="mt-0.5 text-xs text-ink-400">em aberto</div>
+            </div>
+            <div className="px-3 sm:px-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-400">Já pago</div>
+              <div className="num-display mt-1.5 text-xl font-bold text-pos-600 sm:text-[22px]">{brl(state.totalPaid)}</div>
+              <div className="mt-0.5 text-xs text-ink-400">de {brl(contract.totalValue)}</div>
+            </div>
+            <div className="pl-3 sm:pl-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-400">Próxima parcela</div>
+              <div className="num-display mt-1.5 text-xl font-bold text-ink-900 sm:text-[22px]">{brl(state.currentInstallmentValue)}</div>
+              <div className="mt-0.5 text-xs text-ink-400">
+                {state.nextInstallmentNumber ? `#${state.nextInstallmentNumber} · ${formatDateBR(state.nextInstallmentDueDate)}` : 'quitado'}
+              </div>
+            </div>
           </div>
         </div>
-        <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-ink-100">
-          <div className="bg-brand-gradient h-full rounded-full" style={{ width: `${Math.max(pctPaid, 2)}%` }} />
-        </div>
-        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-ink-500">
-          <span className="inline-flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${entradaDone ? 'bg-pos-500' : 'bg-ink-300'}`} />
-            Entrada: <b className="font-semibold text-ink-700">{entradaDone ? 'concluída' : `${paidDown} de ${downRows.length} pagas`}</b>
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-brand-500" />
-            Financiamento: <b className="font-semibold text-ink-700">{paidFin} de {finRows.length} parcelas pagas</b>
-          </span>
-        </div>
-      </Card>
 
-      {/* Resumo financeiro */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <StatCard label="Saldo devedor atual" value={brl(state.currentBalance)} accent />
-        <StatCard label="Total já pago" value={brl(state.totalPaid)} tone="pos" />
-        <StatCard
-          label="Próxima parcela"
-          value={brl(state.currentInstallmentValue)}
-          hint={state.nextInstallmentNumber ? `#${state.nextInstallmentNumber} · ${formatDateBR(state.nextInstallmentDueDate)}` : 'quitado'}
-        />
+        {/* composição da carteira — pago vs em aberto */}
+        <div className="mt-6">
+          <div className="flex h-2.5 overflow-hidden rounded-full bg-ink-100">
+            <div className="bg-pos-600" style={{ width: `${Math.min(Math.max(pctPaid, 0), 100)}%` }} />
+            <div className="bg-brand-gradient flex-1" />
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs">
+            <span className="inline-flex items-center gap-1.5 text-ink-500">
+              <span className="h-2 w-2 rounded-sm bg-pos-600" />
+              Pago <b className="font-semibold text-ink-800">{brl(state.totalPaid)}</b>
+            </span>
+            {state.totalAmortized > 0 && (
+              <span className="inline-flex items-center gap-1.5 text-ink-500">
+                <span className="h-2 w-2 rounded-sm bg-pos-100 ring-1 ring-inset ring-pos-500/30" />
+                Amortizado <b className="font-semibold text-ink-800">{brl(state.totalAmortized)}</b>
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1.5 text-ink-500">
+              <span className="h-2 w-2 rounded-sm bg-brand-500" />
+              Em aberto <b className="font-semibold text-ink-800">{brl(state.currentBalance)}</b>
+            </span>
+            <span className="ml-auto text-ink-400">
+              {entradaDone ? 'Entrada concluída' : `Entrada ${paidDown}/${downRows.length}`} · Financ. {paidFin}/{finRows.length}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Conteúdo principal em duas colunas */}
@@ -284,32 +320,58 @@ function InicioDashboard({
               </button>
             </div>
             <div className="divide-y divide-ink-100">
-              {upcoming.map((r, i) => (
-                <div
-                  key={r.number}
-                  className={`flex items-center justify-between px-5 py-2.5 ${i === 0 ? 'bg-brand-50/50' : ''}`}
-                >
-                  <div>
-                    <div className="flex items-center gap-1.5 text-sm font-semibold text-ink-800">
-                      Parcela {r.number}
-                      {i === 0 && (
-                        <span className="rounded-full bg-brand-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-brand-700">
-                          Próxima
+              {upcoming.map((r, i) => {
+                const [, mm, dd] = r.dueDate.split('-')
+                const mes = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'][Number(mm) - 1]
+                return (
+                  <div
+                    key={r.number}
+                    className={`flex items-center justify-between gap-2 px-4 py-2.5 ${i === 0 ? 'bg-brand-50/50' : ''}`}
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      {/* chip de data */}
+                      <div
+                        className={`flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-xl border leading-none ${
+                          r.correction
+                            ? 'border-brand-200 bg-brand-50'
+                            : i === 0
+                              ? 'border-brand-200 bg-white'
+                              : 'border-ink-100 bg-ink-50'
+                        }`}
+                      >
+                        <span
+                          className={`num-display text-sm font-bold ${
+                            r.correction ? 'text-brand-700' : i === 0 ? 'text-brand-700' : 'text-ink-800'
+                          }`}
+                        >
+                          {dd}
                         </span>
-                      )}
-                      {r.correction && (
-                        <span className="rounded-full bg-brand-50 px-1.5 py-0.5 text-[9px] font-bold text-brand-700">
-                          infl. est. ~{pct(r.correction.ipca)}
+                        <span className={`text-[8.5px] font-bold tracking-wide ${r.correction ? 'text-brand-400' : 'text-ink-400'}`}>
+                          {mes}
                         </span>
-                      )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-ink-800">
+                          Parcela {r.number}
+                          {i === 0 && (
+                            <span className="rounded-full bg-brand-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-700">
+                              Próxima
+                            </span>
+                          )}
+                        </div>
+                        {r.correction ? (
+                          <div className="text-[11px] font-semibold text-brand-600">atualização infl. est. ~{pct(r.correction.ipca)}</div>
+                        ) : (
+                          <div className="text-xs text-ink-400">vence {formatDateBR(r.dueDate)}</div>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-xs text-ink-400">{formatDateBR(r.dueDate)}</div>
+                    <span className={`num-display shrink-0 text-sm font-semibold ${i === 0 ? 'text-brand-700' : 'text-ink-800'}`}>
+                      {brl(r.value)}
+                    </span>
                   </div>
-                  <span className={`num-display text-sm font-semibold ${i === 0 ? 'text-brand-700' : 'text-ink-800'}`}>
-                    {brl(r.value)}
-                  </span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </Card>
 
