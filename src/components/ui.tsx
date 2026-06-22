@@ -1,5 +1,6 @@
 import {
   type ButtonHTMLAttributes,
+  type ChangeEvent,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
@@ -154,6 +155,45 @@ const inputCls =
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputCls} tnum ${props.className ?? ''}`} />
+}
+
+/**
+ * Campo monetário com máscara de R$ em milhar.
+ * O usuário digita apenas números; o valor é interpretado em centavos e
+ * exibido como "R$ 350.000,00". `onValueChange` devolve o número em reais.
+ */
+export function MoneyInput({
+  value,
+  onValueChange,
+  placeholder = 'R$ 0,00',
+  className = '',
+  ...rest
+}: {
+  value: number | null | undefined
+  onValueChange: (value: number) => void
+  placeholder?: string
+  className?: string
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'>) {
+  const display =
+    value == null || Number.isNaN(value) || value === 0
+      ? ''
+      : value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  function handle(e: ChangeEvent<HTMLInputElement>) {
+    const digits = e.target.value.replace(/\D/g, '')
+    onValueChange(digits ? Number(digits) / 100 : 0)
+  }
+
+  return (
+    <input
+      {...rest}
+      value={display}
+      onChange={handle}
+      inputMode="numeric"
+      placeholder={placeholder}
+      className={`${inputCls} tnum ${className}`}
+    />
+  )
 }
 
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {

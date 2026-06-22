@@ -12,6 +12,7 @@ import {
   Field,
   Input,
   Modal,
+  MoneyInput,
   Notice,
   PageHeader,
   Select,
@@ -157,10 +158,16 @@ function NewContractModal({ open, onClose }: { open: boolean; onClose: () => voi
               <Input value={form.title} onChange={set('title')} placeholder="Ex.: Venda de Terreno — Lote 00" />
             </Field>
             <Field label="Valor total da venda">
-              <Input value={form.totalValue} onChange={set('totalValue')} />
+              <MoneyInput
+                value={parseMoney(form.totalValue)}
+                onValueChange={(n) => setForm((f) => ({ ...f, totalValue: String(n) }))}
+              />
             </Field>
             <Field label="Valor da entrada">
-              <Input value={form.downPaymentValue} onChange={set('downPaymentValue')} />
+              <MoneyInput
+                value={parseMoney(form.downPaymentValue)}
+                onValueChange={(n) => setForm((f) => ({ ...f, downPaymentValue: String(n) }))}
+              />
             </Field>
             <Field label="Parcelas da entrada">
               <Input value={form.downPaymentInstallments} onChange={set('downPaymentInstallments')} />

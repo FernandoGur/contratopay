@@ -17,7 +17,7 @@ import {
   Card,
   INSTALLMENT_STATUS_LABEL,
   INSTALLMENT_STATUS_TONE,
-  Input,
+  MoneyInput,
   PAYMENT_STATUS_LABEL,
   Row,
 } from '@/components/ui'
@@ -194,7 +194,7 @@ function InicioDashboard({
     Math.round((state.totalPaid / Math.max(1, contract.totalValue)) * 100),
   )
   const entradaDone = downRows.length > 0 && paidDown === downRows.length
-  const upcoming = finRows.filter((r) => r.status !== 'paga').slice(0, 6)
+  const upcoming = finRows.filter((r) => r.status !== 'paga').slice(0, 3)
   const recentPayments = [...calc.payments]
     .filter((p) => p.status === 'pago')
     .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate))
@@ -530,7 +530,12 @@ function PixBlock({
             >
               {hasRealPix ? pix!.pixKey : 'Chave Pix ainda não informada'}
             </div>
-            <Button onClick={copy} disabled={!hasRealPix} aria-label="Copiar chave Pix">
+            <Button
+              onClick={copy}
+              disabled={!hasRealPix}
+              aria-label="Copiar chave Pix"
+              className="w-[6.5rem] shrink-0"
+            >
               {copied ? 'Copiado!' : 'Copiar'}
             </Button>
           </div>
@@ -695,11 +700,10 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
           <label className="mb-1.5 block text-sm font-medium text-ink-700">
             Quanto deseja pagar a mais?
           </label>
-          <Input
-            inputMode="decimal"
-            value={extraText}
-            onChange={(e) => setExtraText(e.target.value)}
-            placeholder="Ex.: 5.000,00"
+          <MoneyInput
+            value={parseMoney(extraText)}
+            onValueChange={(n) => setExtraText(num(n))}
+            placeholder="R$ 0,00"
           />
           <div className="mt-2 flex flex-wrap gap-1.5">
             {[1000, 5000, 10000, 20000].map((v) => (
@@ -722,11 +726,10 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
           <label className="mb-1.5 block text-sm font-medium text-ink-700">
             Quero que minha parcela fique em
           </label>
-          <Input
-            inputMode="decimal"
-            value={targetText}
-            onChange={(e) => setTargetText(e.target.value)}
-            placeholder={`Ex.: ${num(roundBase)}`}
+          <MoneyInput
+            value={parseMoney(targetText)}
+            onValueChange={(n) => setTargetText(num(n))}
+            placeholder={`R$ ${num(roundBase)}`}
           />
           <div className="mt-2 flex flex-wrap gap-1.5">
             {roundTargets.map((v) => (

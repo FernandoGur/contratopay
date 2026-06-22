@@ -22,6 +22,7 @@ import {
   INSTALLMENT_STATUS_TONE,
   Input,
   Modal,
+  MoneyInput,
   Notice,
   PAYMENT_STATUS_LABEL,
   PageHeader,
@@ -616,14 +617,14 @@ function PaymentModal({
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
         <Field label="Valor pago (parcela)">
-          <Input value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <MoneyInput value={parseMoney(amount)} onValueChange={(n) => setAmount(String(n))} />
         </Field>
         {isFin && (
           <Field
             label="Valor extra para amortizar o saldo"
             hint="Opcional — reduz o saldo devedor e recalcula as próximas parcelas."
           >
-            <Input value={amort} onChange={(e) => setAmort(e.target.value)} />
+            <MoneyInput value={parseMoney(amort)} onValueChange={(n) => setAmort(String(n))} />
           </Field>
         )}
         <div className="rounded-lg bg-ink-50 px-4 py-3">
