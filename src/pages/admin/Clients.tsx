@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createClient, getContractsByClient, getDb, updateClient } from '@/lib/repo'
+import { supabase, useSupabase } from '@/lib/supabase'
 import { useDb } from '@/lib/store'
 import type { Client, ClientStatus } from '@/lib/types'
 import {
@@ -100,11 +101,45 @@ function ClientModal({
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
+  // Acesso (login) do cliente — via Edge Function (somente modo Supabase).
+  const [password, setPassword] = useState('')
+  const [accessLoading, setAccessLoading] = useState(false)
+  const [accessMsg, setAccessMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
   function save() {
     if (!form.name.trim()) return
     if (client) updateClient(client.id, form)
     else createClient(form)
     onClose()
+  }
+
+  async function createAccess() {
+    setAccessMsg(null)
+    const email = form.email.trim().toLowerCase()
+    if (!email) return setAccessMsg({ ok: false, text: 'Preencha o e-mail do cliente.' })
+    if (password.length < 6) return setAccessMsg({ ok: false, text: 'Senha de no mínimo 6 caracteres.' })
+    setAccessLoading(true)
+    try {
+      // Garante que o e-mail está salvo no cadastro (RLS liga login ao cliente).
+      if (client) updateClient(client.id, { ...form, email })
+      const { data, error } = await supabase!.functions.invoke('create-client-user', {
+        body: { email, password },
+      })
+      if (error) throw new Error(error.message)
+      const res = data as { error?: string; updated?: boolean } | null
+      if (res?.error) throw new Error(res.error)
+      setAccessMsg({
+        ok: true,
+        text: res?.updated
+          ? 'Senha do acesso atualizada. O cliente entra com esse e-mail e senha.'
+          : 'Acesso criado! O cliente já pode entrar com esse e-mail e a senha definida.',
+      })
+      setPassword('')
+    } catch (e) {
+      setAccessMsg({ ok: false, text: 'Não foi possível criar o acesso: ' + (e as Error).message })
+    } finally {
+      setAccessLoading(false)
+    }
   }
 
   return (
@@ -143,6 +178,49 @@ function ClientModal({
           </Field>
         </div>
       </div>
+
+      {useSupabase && (
+        <div className="mt-4 rounded-xl border border-ink-200 p-4">
+          <div className="text-sm font-semibold text-ink-900">Acesso do cliente (login)</div>
+          {client ? (
+            <>
+              <p className="mt-1 text-xs text-ink-500">
+                Cria o login com o e-mail acima ({form.email || '—'}) e a senha definida. O cliente
+                acessa de qualquer aparelho e vê só o contrato dele.
+              </p>
+              <div className="mt-3 flex flex-wrap items-end gap-2">
+                <div className="min-w-[180px] flex-1">
+                  <Field label="Senha do cliente">
+                    <Input
+                      type="text"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="mín. 6 caracteres"
+                    />
+                  </Field>
+                </div>
+                <Button variant="secondary" onClick={createAccess} disabled={accessLoading}>
+                  {accessLoading ? 'Criando…' : 'Criar / atualizar login'}
+                </Button>
+              </div>
+              {accessMsg && (
+                <div
+                  className={`mt-3 rounded-lg px-3 py-2 text-sm ${
+                    accessMsg.ok ? 'bg-pos-50 text-pos-700' : 'bg-warn-50 text-warn-700'
+                  }`}
+                >
+                  {accessMsg.text}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="mt-1 text-xs text-ink-500">
+              Salve o cliente primeiro; depois reabra o cadastro para criar o acesso.
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="mt-5 flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose}>
           Cancelar
