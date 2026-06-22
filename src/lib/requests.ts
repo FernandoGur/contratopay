@@ -1,0 +1,36 @@
+// Intenção do cliente anexada a um comprovante: um pedido de amortização do
+// saldo ou de quitação antecipada das últimas parcelas. Vai serializada em
+// Payment.notes — que de outra forma guarda só o nome do arquivo — por isso o
+// parser é retrocompatível com texto puro (comprovantes comuns de parcela).
+
+export interface ExtraIntent {
+  mode: 'amortizar' | 'quitar'
+  /** amortizar: valor extra para abater o saldo · quitar: total pago hoje. */
+  amount: number
+  /** quitar: nº de últimas parcelas que o cliente quer quitar. */
+  count?: number
+}
+
+export interface ReceiptMeta {
+  file: string
+  intent?: ExtraIntent
+}
+
+export function encodeReceiptNotes(meta: ReceiptMeta): string {
+  if (!meta.intent) return meta.file
+  return JSON.stringify({ file: meta.file, intent: meta.intent })
+}
+
+export function parseReceiptNotes(notes: string | null | undefined): ReceiptMeta {
+  const raw = (notes ?? '').trim()
+  if (!raw || raw[0] !== '{') return { file: raw }
+  try {
+    const o = JSON.parse(raw) as { file?: unknown; intent?: ExtraIntent }
+    if (o && typeof o === 'object' && o.intent && o.intent.mode) {
+      return { file: typeof o.file === 'string' ? o.file : '', intent: o.intent }
+    }
+  } catch {
+    /* não é JSON → texto puro (nome do arquivo) */
+  }
+  return { file: raw }
+}

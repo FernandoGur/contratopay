@@ -15,6 +15,7 @@ import {
   type ScheduleRow,
 } from './finance'
 import { todayISO } from './dates'
+import { encodeReceiptNotes, type ExtraIntent } from './requests'
 import { makeSeed } from './seed'
 import { supabase, useSupabase } from './supabase'
 import { hydrate, upsertRow, deleteRow } from './supabaseSync'
@@ -357,7 +358,10 @@ export function getContractCalc(contractId: string): ContractCalc | null {
     }
     // Amortização: tanto a combinada (na parcela do financiamento) quanto o
     // lançamento avulso ('amortizacao') abatem o saldo no ponto indicado.
+    // Só vale depois de validada (status 'pago'); um pedido do cliente ainda
+    // em análise NÃO mexe no saldo.
     if (
+      p.status === 'pago' &&
       p.amortizationAmount > 0 &&
       (p.installmentType === 'financiamento' || p.installmentType === 'amortizacao')
     ) {
@@ -637,7 +641,12 @@ export function submitReceipt(
   installmentNumber: number,
   receiptUrl: string,
   fileName = '',
+  intent?: ExtraIntent,
 ) {
+  // `intent` (amortizar/quitar) é serializado junto do nome do arquivo. O
+  // registro fica inerte (amount/amortization 0, status comprovante_enviado):
+  // não mexe no cálculo até o vendedor validar no modal de revisão.
+  const notes = encodeReceiptNotes({ file: fileName, intent })
   const existing = db.payments.find(
     (p) =>
       p.contractId === contractId &&
@@ -648,7 +657,7 @@ export function submitReceipt(
   if (existing) {
     existing.receiptUrl = receiptUrl
     existing.status = 'comprovante_enviado'
-    existing.notes = fileName
+    existing.notes = notes
     existing.paymentDate = todayISO()
     existing.createdAt = nowISO() // atualiza a hora do envio ao trocar
     row = existing
@@ -665,7 +674,7 @@ export function submitReceipt(
       pixKeyId: getActivePixKey(contractId)?.id ?? null,
       receiptUrl,
       status: 'comprovante_enviado',
-      notes: fileName,
+      notes,
       createdBy: getCurrentUser()?.id ?? 'user-cliente',
       createdAt: nowISO(),
     }

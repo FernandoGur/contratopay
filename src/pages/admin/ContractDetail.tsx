@@ -14,6 +14,7 @@ import { useDb } from '@/lib/store'
 import { brl, pct } from '@/lib/format'
 import { formatDateBR, formatMonthBR, todayISO } from '@/lib/dates'
 import { openReceipt } from '@/lib/receipt'
+import { parseReceiptNotes } from '@/lib/requests'
 import {
   simulateAnticipateLast,
   simulateExtraPayment,
@@ -407,6 +408,14 @@ function PagamentosTab({
                   {p.installmentType === 'amortizacao' || (p.amount <= 0 && p.amortizationAmount > 0)
                     ? 'Amortização'
                     : `${p.installmentType === 'entrada' ? 'Entrada' : 'Fin.'} #${p.installmentNumber}`}
+                  {(() => {
+                    const it = parseReceiptNotes(p.notes).intent
+                    return it ? (
+                      <span className="ml-1.5 rounded-full bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700">
+                        pedido: {it.mode === 'amortizar' ? 'amortizar' : 'quitar'}
+                      </span>
+                    ) : null
+                  })()}
                 </td>
                 <td className="px-4 py-2.5 tnum text-ink-600">{formatDateBR(p.paymentDate)}</td>
                 <td className="px-4 py-2.5 text-right tnum text-ink-900">
@@ -752,10 +761,18 @@ function ReviewReceiptModal({
   const openFin = calc.schedule.rows.filter((r) => r.status !== 'paga')
   const submittedRow = sourceRows.find((r) => r.number === payment.installmentNumber)
 
+  // Pedido do cliente (amortizar / quitar) anexado ao comprovante: pré-seleciona
+  // o modo e o valor; o vendedor ainda pode ajustar antes de confirmar.
+  const intent = parseReceiptNotes(payment.notes).intent
+
   const [date, setDate] = useState(payment.paymentDate || todayISO())
-  const [amount, setAmount] = useState(payment.amount > 0 ? payment.amount : submittedRow?.value ?? 0)
-  const [mode, setMode] = useState<ReviewMode>('parcela')
-  const [count, setCount] = useState(1)
+  const [amount, setAmount] = useState(
+    intent ? intent.amount : payment.amount > 0 ? payment.amount : submittedRow?.value ?? 0,
+  )
+  const [mode, setMode] = useState<ReviewMode>(
+    intent ? (intent.mode === 'amortizar' ? 'amortizar' : 'antecipar') : 'parcela',
+  )
+  const [count, setCount] = useState(intent?.count ?? 1)
   // No modo "amortizar": o valor inclui a parcela do mês (quita + amortiza o
   // excedente) ou é só amortização (parcela continua a vencer)?
   const [amortIncludesParcela, setAmortIncludesParcela] = useState(false)
@@ -921,6 +938,18 @@ function ReviewReceiptModal({
 
         {/* Conferência */}
         <div className="space-y-4">
+          {intent && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-2.5 text-sm text-brand-900">
+              <svg viewBox="0 0 24 24" className="mt-0.5 h-4.5 w-4.5 shrink-0 text-brand-600" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+              <div>
+                <b>Pedido do cliente:</b>{' '}
+                {intent.mode === 'amortizar'
+                  ? `amortizar o saldo em ${brl(intent.amount)}.`
+                  : `quitar ${intent.count && intent.count > 1 ? `as ${intent.count} últimas parcelas` : 'a última parcela'} por ${brl(intent.amount)}.`}
+                <span className="mt-0.5 block text-xs text-brand-700">Já pré-selecionado abaixo — confira o comprovante e ajuste se precisar.</span>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Data do recebimento">
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />

@@ -10,8 +10,9 @@ import {
 } from '@/lib/repo'
 import { useCurrentUser, useDb } from '@/lib/store'
 import { brl, num, parseMoney, pct } from '@/lib/format'
-import { formatDateBR } from '@/lib/dates'
+import { formatDateBR, todayISO } from '@/lib/dates'
 import { openReceipt } from '@/lib/receipt'
+import { parseReceiptNotes } from '@/lib/requests'
 import {
   generateSchedule,
   simulateAnticipateLast,
@@ -608,13 +609,15 @@ function PixBlock({
   const nextRow = calc.schedule.rows.find((r) => r.number === state.nextInstallmentNumber)
   const dueLabel = dueRelative(state.nextInstallmentDueDate)
 
-  // Comprovante já enviado (aguardando validação) da parcela atual.
+  // Comprovante já enviado (aguardando validação) da parcela atual. Pedidos de
+  // amortização/quitação (que têm "intenção") ficam nos simuladores, não aqui.
   const submittedReceipt = calc.payments.find(
     (p) =>
       p.installmentType === 'financiamento' &&
       p.installmentNumber === state.nextInstallmentNumber &&
       p.status === 'comprovante_enviado' &&
-      !!p.receiptUrl,
+      !!p.receiptUrl &&
+      !parseReceiptNotes(p.notes).intent,
   )
   const receiptUrl = submittedReceipt?.receiptUrl ?? null
   const receiptIsImage = !!receiptUrl && /^data:image|\.(png|jpe?g|webp|gif)(\?|$)/i.test(receiptUrl)
@@ -643,7 +646,8 @@ function PixBlock({
 
   // Metadados do comprovante enviado (nome, tamanho, hora).
   const receiptName =
-    (submittedReceipt?.notes || '').trim() || (receiptIsImage ? 'comprovante.jpg' : 'comprovante.pdf')
+    parseReceiptNotes(submittedReceipt?.notes).file ||
+    (receiptIsImage ? 'comprovante.jpg' : 'comprovante.pdf')
   const receiptKB = receiptUrl
     ? Math.max(1, Math.round(((receiptUrl.split(',')[1]?.length ?? 0) * 0.75) / 1024))
     : 0
@@ -837,6 +841,120 @@ function PixBlock({
 // ---------------------------------------------------------------------------
 type SimMode = 'reduzir' | 'antecipar'
 
+/** Anexo de comprovante de um pedido extra (amortizar / quitar antecipado).
+ *  Cria uma solicitação pendente — inerte no cálculo — que o vendedor valida
+ *  no Revisar completo, já pré-selecionado pela intenção do cliente. */
+function RequestComprovante({
+  calc,
+  mode,
+  amount,
+  count,
+}: {
+  calc: NonNullable<ReturnType<typeof getContractCalc>>
+  mode: 'amortizar' | 'quitar'
+  amount: number
+  count?: number
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [dragOver, setDragOver] = useState(false)
+
+  const openFin = calc.schedule.rows.filter((r) => r.status !== 'paga')
+  const target = openFin[0]
+  const label = mode === 'amortizar' ? 'amortização' : 'quitação antecipada'
+
+  // Pedido desta modalidade já enviado (aguardando validação).
+  const pending = calc.payments.find(
+    (p) =>
+      p.installmentType === 'financiamento' &&
+      p.status === 'comprovante_enviado' &&
+      !!p.receiptUrl &&
+      parseReceiptNotes(p.notes).intent?.mode === mode,
+  )
+  const pendingUrl = pending?.receiptUrl ?? null
+  const pendingMeta = parseReceiptNotes(pending?.notes)
+  const pendingIsImage = !!pendingUrl && /^data:image|\.(png|jpe?g|webp|gif)(\?|$)/i.test(pendingUrl)
+  const pendingName = pendingMeta.file || (pendingIsImage ? 'comprovante.jpg' : 'comprovante.pdf')
+  const pendingSent = pending ? formatSentTime(pending.createdAt) : ''
+
+  function handleFile(file: File | undefined | null) {
+    if (!file || !target || !(amount > 0)) return
+    const reader = new FileReader()
+    reader.onload = () =>
+      submitReceipt(
+        calc.contract.id,
+        'financiamento',
+        target.number,
+        String(reader.result),
+        file.name,
+        { mode, amount, count },
+      )
+    reader.readAsDataURL(file)
+  }
+
+  if (pending) {
+    return (
+      <div className="rounded-2xl border border-ink-200 p-3">
+        <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = '' }} />
+        <div className="flex items-center justify-between">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-warn-50 px-2.5 py-0.5 text-[11px] font-semibold text-warn-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-warn-500" /> Pedido em análise
+          </span>
+          <span className="text-[11px] text-ink-400">enviado {pendingSent}</span>
+        </div>
+        <div className="mt-2.5 flex items-center gap-3 rounded-xl border border-ink-200 p-2.5">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-ink-200 bg-ink-50">
+            {pendingIsImage ? (
+              <img src={pendingUrl!} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <svg viewBox="0 0 24 24" className="h-5 w-5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold text-ink-900">{pendingName}</div>
+            <div className="text-xs text-ink-400">Pedido de {label} · {brl(pendingMeta.intent?.amount ?? 0)}</div>
+          </div>
+          <button type="button" onClick={() => openReceipt(pendingUrl)} aria-label="Ver comprovante" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink-200 text-ink-500 hover:bg-ink-50">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+          </button>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <Button variant="secondary" size="sm" onClick={() => openReceipt(pendingUrl)}>Ver</Button>
+          <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>Trocar</Button>
+          <Button variant="secondary" size="sm" onClick={() => pending && deletePayment(pending.id)} className="text-neg-700 hover:bg-neg-50">Excluir</Button>
+        </div>
+        <p className="mt-2 text-center text-[11px] text-ink-400">O vendedor confere o valor e aplica a {label} oficialmente.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = '' }} />
+      <div
+        onClick={() => amount > 0 && fileRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files?.[0]) }}
+        className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-7 text-center transition-colors ${amount > 0 ? (dragOver ? 'cursor-pointer border-brand-400 bg-brand-50' : 'cursor-pointer border-ink-300 hover:bg-ink-50') : 'cursor-not-allowed border-ink-200 opacity-60'}`}
+      >
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-100 text-brand-600">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="m7 8 5-5 5 5" /><path d="M5 21h14" /></svg>
+        </div>
+        <div className="mt-2.5 text-sm font-semibold text-ink-900">Já pagou? Anexe o comprovante</div>
+        <p className="mt-1 max-w-[18rem] text-xs text-ink-500">Cria um pedido de {label} para o vendedor validar. PDF, JPG ou PNG até 10 MB.</p>
+        <button
+          type="button"
+          disabled={!(amount > 0)}
+          onClick={(e) => { e.stopPropagation(); fileRef.current?.click() }}
+          className="mt-3 rounded-lg bg-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-brand hover:bg-brand-700 disabled:opacity-50"
+        >
+          Selecionar arquivo
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ExtraBlock({
   calc,
   initialMode = 'reduzir',
@@ -902,6 +1020,12 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
   const currentParcela = vincendas > 0 ? saldo / vincendas : 0
   const target = parseMoney(targetText)
 
+  // Bloqueia amortizar enquanto houver parcela do mês corrente (ou vencida) em
+  // aberto: o cliente precisa quitar a parcela antes de amortizar o saldo.
+  const openFin = calc.schedule.rows.filter((r) => r.status !== 'paga')
+  const nextOpen = openFin[0]
+  const blockAmortize = !!nextOpen && nextOpen.dueDate.slice(0, 7) <= todayISO().slice(0, 7)
+
   // No modo "parcela", o extra é deduzido da parcela desejada.
   const extra =
     inputMode === 'valor'
@@ -936,6 +1060,16 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
         Um pagamento à parte, separado da sua parcela mensal. O valor vai direto para o saldo
         devedor e recalcula as próximas parcelas (o prazo continua o mesmo).
       </p>
+
+      {blockAmortize && nextOpen && (
+        <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-warn-200 bg-warn-50 px-4 py-3 text-sm text-warn-800">
+          <svg viewBox="0 0 24 24" className="mt-0.5 h-4.5 w-4.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 9v4M12 17h.01" /><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" /></svg>
+          <div>
+            Você tem a <b>parcela {nextOpen.number}</b> {nextOpen.status === 'vencida' ? 'vencida' : 'a vencer este mês'} ({brl(nextOpen.value)}).
+            Quite-a primeiro — depois você poderá amortizar o saldo. Para encurtar o contrato agora, use <b>Quitar últimas parcelas</b>.
+          </div>
+        </div>
+      )}
 
       {/* Sub-modo: por valor ou por parcela desejada */}
       <div className="mt-4 inline-flex rounded-xl bg-ink-100 p-1 text-sm font-semibold">
@@ -1065,14 +1199,21 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
           </button>
           {showDetails && <DiscountBreakdown sim={sim} />}
 
-          <Button onClick={copyExtra} className="w-full">
-            {copied ? 'Valor copiado!' : `Gerar pagamento extra (${brl(sim.extra)})`}
-          </Button>
+          {!blockAmortize && (
+            <>
+              <Button onClick={copyExtra} variant="secondary" className="w-full">
+                {copied ? 'Valor copiado!' : `Copiar valor a pagar (${brl(sim.extra)})`}
+              </Button>
 
-          <p className="text-center text-xs text-ink-400">
-            Esta é uma simulação. Pague este valor à parte e envie o comprovante — o vendedor aplica
-            a redução do saldo oficialmente.
-          </p>
+              <div className="rounded-2xl bg-ink-50/70 p-3">
+                <div className="mb-2 text-center text-xs text-ink-500">
+                  Pague <b className="num-display text-ink-800">{brl(sim.extra)}</b> via Pix e anexe o
+                  comprovante. O vendedor valida e aplica a redução do saldo.
+                </div>
+                <RequestComprovante calc={calc} mode="amortizar" amount={sim.extra} />
+              </div>
+            </>
+          )}
         </div>
       )}
     </Card>
@@ -1283,14 +1424,17 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
           </div>
         </div>
 
-        <Button onClick={copyTotal} className="w-full">
-          {copied ? 'Total copiado!' : `Gerar total a pagar (${brl(sim.payToday)})`}
+        <Button onClick={copyTotal} variant="secondary" className="w-full">
+          {copied ? 'Total copiado!' : `Copiar total a pagar (${brl(sim.payToday)})`}
         </Button>
 
-        <p className="text-center text-xs text-ink-400">
-          Esta é uma simulação. Para confirmar, pague o valor acima e envie o comprovante —
-          o vendedor dará baixa nas últimas parcelas.
-        </p>
+        <div className="rounded-2xl bg-ink-50/70 p-3">
+          <div className="mb-2 text-center text-xs text-ink-500">
+            Pague <b className="num-display text-ink-800">{brl(sim.payToday)}</b> via Pix e anexe o
+            comprovante. O vendedor dá baixa nas {sim.count === 1 ? 'última parcela' : `${sim.count} últimas parcelas`}.
+          </div>
+          <RequestComprovante calc={calc} mode="quitar" amount={sim.payToday} count={sim.count} />
+        </div>
       </div>
     </Card>
   )
@@ -1315,10 +1459,12 @@ function ParcelasTab({
   const paidCount = rows.filter((r) => r.status === 'paga').length
   const openCount = rows.length - paidCount
 
-  // Comprovante vinculado a cada parcela (entrada/financiamento).
+  // Comprovante vinculado a cada parcela (entrada/financiamento). Pedidos de
+  // amortização/quitação (com "intenção") não vinculam a uma parcela — só
+  // aparecem no extrato.
   const receiptByKey: Record<string, string> = {}
   for (const p of calc.payments) {
-    if (p.receiptUrl && p.installmentType !== 'amortizacao') {
+    if (p.receiptUrl && p.installmentType !== 'amortizacao' && !parseReceiptNotes(p.notes).intent) {
       receiptByKey[`${p.installmentType}-${p.installmentNumber}`] = p.receiptUrl
     }
   }
@@ -1512,28 +1658,39 @@ function ParcelasTab({
           )}
           <div className="divide-y divide-ink-100">
             {extrato.map((p) => {
-              const isAmort =
-                p.installmentType === 'amortizacao' || (p.amount <= 0 && p.amortizationAmount > 0)
-              const title = isAmort
-                ? 'Amortização'
-                : `${p.installmentType === 'entrada' ? 'Entrada' : 'Parcela'} ${p.installmentNumber}`
+              const intent = parseReceiptNotes(p.notes).intent
+              const isAmort = intent
+                ? intent.mode === 'amortizar'
+                : p.installmentType === 'amortizacao' || (p.amount <= 0 && p.amortizationAmount > 0)
+              const title = intent
+                ? intent.mode === 'amortizar'
+                  ? 'Amortização'
+                  : intent.count && intent.count > 1
+                    ? `Quitação de ${intent.count} parcelas`
+                    : 'Quitação antecipada'
+                : isAmort
+                  ? 'Amortização'
+                  : `${p.installmentType === 'entrada' ? 'Entrada' : 'Parcela'} ${p.installmentNumber}`
               const pending = p.status === 'comprovante_enviado'
+              // Pedido pendente mostra o valor pretendido (registro fica inerte).
+              const value = intent ? intent.amount : p.amount + p.amortizationAmount
               return (
                 <div key={p.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold text-ink-800">{title}</div>
+                    <div className="text-sm font-semibold text-ink-800">
+                      {title}
+                      {intent && <span className="ml-1.5 font-normal text-ink-400">· pedido</span>}
+                    </div>
                     <div className="text-xs text-ink-400">
                       {formatDateBR(p.paymentDate)}
-                      {p.amortizationAmount > 0 && !isAmort
+                      {p.amortizationAmount > 0 && !isAmort && !intent
                         ? ` · amortização ${brl(p.amortizationAmount)}`
                         : ''}
                       {p.receiptUrl && <ReceiptThumb url={p.receiptUrl} />}
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <div className="num-display text-sm font-semibold text-ink-800">
-                      {brl(p.amount + p.amortizationAmount)}
-                    </div>
+                    <div className="num-display text-sm font-semibold text-ink-800">{brl(value)}</div>
                     <div
                       className={`text-[11px] font-medium ${
                         pending ? 'text-warn-700' : isAmort ? 'text-brand-600' : 'text-pos-600'
