@@ -99,7 +99,14 @@ function loadDb(): Database {
 }
 
 function persist() {
-  localStorage.setItem(useSupabase ? SB_KEY : DB_KEY, JSON.stringify(db))
+  // setItem pode lançar QuotaExceededError (ex.: comprovante grande em base64
+  // estoura ~5MB do localStorage). Não derruba a app — o estado em memória já
+  // foi atualizado; só não persiste entre recarregamentos.
+  try {
+    localStorage.setItem(useSupabase ? SB_KEY : DB_KEY, JSON.stringify(db))
+  } catch (e) {
+    console.error('[persist] localStorage falhou (cota?)', e)
+  }
   version++
   listeners.forEach((l) => l())
 }

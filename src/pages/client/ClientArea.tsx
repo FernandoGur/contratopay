@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Navigate, useParams } from 'react-router-dom'
 import {
   getActivePixKey,
   getContractCalc,
@@ -46,7 +46,7 @@ export function ClientArea() {
   const user = useCurrentUser()
   const params = useParams<{ id: string }>()
   // Cliente logado vê o próprio contrato; admin pode abrir via link com :id.
-  const calc = useResolvedContract(params.id, user?.clientId)
+  const calc = useResolvedContract(params.id, user)
   const [tab, setTab] = useState<ClientTab>('inicio')
   const [simMode, setSimMode] = useState<'reduzir' | 'antecipar'>('reduzir')
   const [parcelasFilter, setParcelasFilter] = useState<Filter>('todas')
@@ -78,10 +78,19 @@ export function ClientArea() {
     window.scrollTo({ top: 0 })
   }, [tab])
 
+  // Deslogado não fica preso: manda para o login.
+  if (!user) return <Navigate to="/" replace />
+
   if (!calc) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-ink-500">
-        Contrato não encontrado.
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-ink-500">Contrato não encontrado ou indisponível para a sua conta.</p>
+        <button
+          onClick={logout}
+          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+        >
+          Sair e entrar com outra conta
+        </button>
       </div>
     )
   }
@@ -224,16 +233,23 @@ export function ClientArea() {
   )
 }
 
-/** Resolve o contrato do cliente (por param na URL ou pelo cliente logado). */
-function useResolvedContract(paramId: string | undefined, clientId?: string) {
+/** Resolve o contrato do cliente (por param na URL ou pelo cliente logado),
+ *  com checagem de POSSE: um cliente só abre o próprio contrato (defesa em
+ *  profundidade além do RLS do Supabase). Admin pode abrir qualquer um via link. */
+function useResolvedContract(paramId: string | undefined, user: ReturnType<typeof useCurrentUser>) {
   const db = useDb()
+  const clientId = user?.clientId
+  const role = user?.role
   return useMemo(() => {
     void db
-    // Se não veio por param, pega o primeiro contrato do cliente logado.
-    const cid =
-      paramId ?? getDb().contracts.find((c) => c.clientId === clientId)?.id
-    return cid ? getContractCalc(cid) : null
-  }, [paramId, clientId, db])
+    const cid = paramId ?? getDb().contracts.find((c) => c.clientId === clientId)?.id
+    if (!cid) return null
+    const calc = getContractCalc(cid)
+    if (!calc) return null
+    // Cliente não pode abrir contrato de outro pelo id da URL.
+    if (role === 'cliente' && calc.contract.clientId !== clientId) return null
+    return calc
+  }, [paramId, role, clientId, db])
 }
 
 // ---------------------------------------------------------------------------
@@ -366,7 +382,7 @@ function InicioDashboard({
             )}
             <span className="inline-flex items-center gap-1.5 text-ink-500">
               <span className="h-2 w-2 rounded-sm bg-brand-500" />
-              Em aberto <b className="font-semibold text-ink-800">{brl(emAbertoTotal)}</b>
+              Falta pagar <b className="font-semibold text-ink-800">{brl(emAbertoTotal)}</b>
             </span>
             <span className="basis-full text-ink-400 sm:ml-auto sm:basis-auto">
               {entradaDone ? 'Entrada concluída' : `Entrada ${paidDown}/${downRows.length}`} · Financ. {paidFin}/{finRows.length}
@@ -598,6 +614,16 @@ function formatSentTime(iso: string): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${hh}:${mm}`
 }
 
+const MAX_RECEIPT_MB = 10
+/** Valida um comprovante antes de ler/enviar. Retorna mensagem de erro ou null. */
+function validateReceipt(file: File): string | null {
+  const okType = file.type.startsWith('image/') || file.type === 'application/pdf'
+  if (!okType) return 'Formato inválido. Envie uma imagem (JPG/PNG) ou um PDF.'
+  if (file.size > MAX_RECEIPT_MB * 1024 * 1024)
+    return `Arquivo muito grande (máx. ${MAX_RECEIPT_MB} MB).`
+  return null
+}
+
 function PixBlock({
   calc,
   pix,
@@ -608,6 +634,7 @@ function PixBlock({
   const { state, contract } = calc
   const [copied, setCopied] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [fileError, setFileError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Considera placeholder/teste quando não há chave ou termina em "@local".
@@ -637,7 +664,14 @@ function PixBlock({
 
   function handleFile(file: File | undefined | null) {
     if (!file || !state.nextInstallmentNumber) return
+    const err = validateReceipt(file)
+    if (err) {
+      setFileError(err)
+      return
+    }
+    setFileError(null)
     const reader = new FileReader()
+    reader.onerror = () => setFileError('Não foi possível ler o arquivo. Tente outro.')
     reader.onload = () => {
       submitReceipt(
         contract.id,
@@ -805,7 +839,7 @@ function PixBlock({
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => submittedReceipt && deletePayment(submittedReceipt.id)}
+                  onClick={() => submittedReceipt && window.confirm('Excluir o comprovante enviado? Esta ação não pode ser desfeita.') && deletePayment(submittedReceipt.id)}
                   className="text-neg-700 hover:bg-neg-50"
                 >
                   Excluir
@@ -834,6 +868,12 @@ function PixBlock({
                   Selecionar arquivo
                 </button>
               </div>
+              {fileError && (
+                <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-neg-700">
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
+                  {fileError}
+                </p>
+              )}
             </>
           )}
         </div>
@@ -863,6 +903,7 @@ function RequestComprovante({
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [fileError, setFileError] = useState<string | null>(null)
 
   const openFin = calc.schedule.rows.filter((r) => r.status !== 'paga')
   const target = openFin[0]
@@ -885,7 +926,14 @@ function RequestComprovante({
 
   function handleFile(file: File | undefined | null) {
     if (!file || !target || !(amount > 0)) return
+    const err = validateReceipt(file)
+    if (err) {
+      setFileError(err)
+      return
+    }
+    setFileError(null)
     const reader = new FileReader()
+    reader.onerror = () => setFileError('Não foi possível ler o arquivo. Tente outro.')
     reader.onload = () =>
       submitReceipt(
         calc.contract.id,
@@ -927,7 +975,7 @@ function RequestComprovante({
         <div className="mt-3 grid grid-cols-3 gap-2">
           <Button variant="secondary" size="sm" onClick={() => openReceipt(pendingUrl)}>Ver</Button>
           <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>Trocar</Button>
-          <Button variant="secondary" size="sm" onClick={() => pending && deletePayment(pending.id)} className="text-neg-700 hover:bg-neg-50">Excluir</Button>
+          <Button variant="secondary" size="sm" onClick={() => pending && window.confirm('Excluir este pedido? Esta ação não pode ser desfeita.') && deletePayment(pending.id)} className="text-neg-700 hover:bg-neg-50">Excluir</Button>
         </div>
         <p className="mt-2 text-center text-[11px] text-ink-400">O vendedor confere o valor e aplica a {label} oficialmente.</p>
       </div>
@@ -958,6 +1006,12 @@ function RequestComprovante({
           Selecionar arquivo
         </button>
       </div>
+      {fileError && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-neg-700">
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
+          {fileError}
+        </p>
+      )}
     </div>
   )
 }

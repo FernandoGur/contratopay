@@ -21,21 +21,28 @@ export function getReceipt() {
   return current
 }
 
-/** Converte um data: URL em blob URL (para exibir PDF em <iframe> com segurança). */
+/** Converte um data: URL em blob URL (para exibir PDF em <iframe> com segurança).
+ *  Resiliente: se o data URL estiver corrompido (base64 inválido), devolve o
+ *  próprio url em vez de lançar e derrubar a árvore React (não há ErrorBoundary). */
 export function dataUrlToBlobUrl(url: string): string {
   if (!url.startsWith('data:')) return url
-  const comma = url.indexOf(',')
-  const meta = url.slice(5, comma)
-  const isB64 = /;base64/i.test(meta)
-  const mime = meta.split(';')[0] || 'application/octet-stream'
-  const data = url.slice(comma + 1)
-  let bytes: Uint8Array
-  if (isB64) {
-    const bin = atob(data)
-    bytes = new Uint8Array(bin.length)
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-  } else {
-    bytes = new TextEncoder().encode(decodeURIComponent(data))
+  try {
+    const comma = url.indexOf(',')
+    if (comma < 0) return url
+    const meta = url.slice(5, comma)
+    const isB64 = /;base64/i.test(meta)
+    const mime = meta.split(';')[0] || 'application/octet-stream'
+    const data = url.slice(comma + 1)
+    let bytes: Uint8Array
+    if (isB64) {
+      const bin = atob(data)
+      bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    } else {
+      bytes = new TextEncoder().encode(decodeURIComponent(data))
+    }
+    return URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime }))
+  } catch {
+    return url
   }
-  return URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime }))
 }

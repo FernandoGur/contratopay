@@ -12,7 +12,8 @@ const NUM = new Intl.NumberFormat('pt-BR', {
 
 /** 5541.67 -> 'R$ 5.541,67' */
 export function brl(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return 'R$ 0,00'
+  // Inclui Infinity/-Infinity (ex.: divisão por 0 parcelas) — nunca exibe "R$ ∞".
+  if (n == null || !Number.isFinite(n)) return 'R$ 0,00'
   // Evita "-R$ 0,00" por resíduos de arredondamento.
   if (Math.abs(n) < 0.005) n = 0
   return BRL.format(n)
@@ -20,7 +21,9 @@ export function brl(n: number | null | undefined): string {
 
 /** 5541.67 -> '5.541,67' (sem símbolo) */
 export function num(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return '0,00'
+  if (n == null || !Number.isFinite(n)) return '0,00'
+  // Mesma guarda do brl(): evita "-0,00" por resíduo negativo.
+  if (Math.abs(n) < 0.005) n = 0
   return NUM.format(n)
 }
 

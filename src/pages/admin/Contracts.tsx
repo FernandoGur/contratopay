@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { createContract, getContractCalc, getDb } from '@/lib/repo'
 import { useDb } from '@/lib/store'
-import { brl, parseMoney } from '@/lib/format'
+import { brl } from '@/lib/format'
 import { formatDateBR } from '@/lib/dates'
 import type { ContractStatus } from '@/lib/types'
 import {
@@ -94,8 +94,8 @@ function NewContractModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [form, setForm] = useState({
     clientId: db.clients[0]?.id ?? '',
     title: '',
-    totalValue: '350000',
-    downPaymentValue: '17500',
+    totalValue: 350000,
+    downPaymentValue: 17500,
     downPaymentInstallments: '12',
     downPaymentStartDate: '2025-06-15',
     financingInstallments: '60',
@@ -106,26 +106,35 @@ function NewContractModal({ open, onClose }: { open: boolean; onClose: () => voi
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
+  // Valores monetários ficam como NÚMERO no estado (o MoneyInput já entrega
+  // número). Não passar por String(n)/parseMoney — o '.' decimal seria lido como
+  // separador de milhar e inflaria o valor a cada tecla.
   const financedValue = useMemo(
-    () => parseMoney(form.totalValue) - parseMoney(form.downPaymentValue),
+    () => Math.max(0, form.totalValue - form.downPaymentValue),
     [form.totalValue, form.downPaymentValue],
   )
-  const baseInstallment = useMemo(() => {
-    const n = Number(form.financingInstallments) || 1
-    return financedValue / n
-  }, [financedValue, form.financingInstallments])
+  const finInstallments = Math.max(0, Math.floor(Number(form.financingInstallments) || 0))
+  const downInstallments = Math.max(0, Math.floor(Number(form.downPaymentInstallments) || 0))
+  // IPCA: aceita vírgula, ignora lixo e limita a [0, 100]%.
+  const forecastIpca = (() => {
+    const p = parseFloat(String(form.forecastAnnualIpca).replace(',', '.'))
+    return Number.isFinite(p) ? Math.min(Math.max(p, 0), 100) / 100 : 0
+  })()
+  const baseInstallment = finInstallments > 0 ? financedValue / finInstallments : 0
+  const canSave =
+    !!form.clientId && !!form.title.trim() && finInstallments >= 1 && form.totalValue > 0
 
   function save() {
-    if (!form.clientId || !form.title.trim()) return
+    if (!canSave) return
     createContract({
       clientId: form.clientId,
       title: form.title,
-      totalValue: parseMoney(form.totalValue),
-      downPaymentValue: parseMoney(form.downPaymentValue),
-      downPaymentInstallments: Number(form.downPaymentInstallments),
+      totalValue: form.totalValue,
+      downPaymentValue: form.downPaymentValue,
+      downPaymentInstallments: downInstallments,
       downPaymentStartDate: form.downPaymentStartDate,
       financedValue,
-      financingInstallments: Number(form.financingInstallments),
+      financingInstallments: finInstallments,
       financingStartDate: form.financingStartDate,
       correctionType: 'ipca_anual',
       correctionBaseDate: form.correctionBaseDate,
@@ -133,7 +142,7 @@ function NewContractModal({ open, onClose }: { open: boolean; onClose: () => voi
       status: 'ativo',
       internalNotes: '',
       clientNotes: '',
-      forecastAnnualIpca: (Number(form.forecastAnnualIpca) || 0) / 100,
+      forecastAnnualIpca: forecastIpca,
     })
     onClose()
   }
@@ -159,14 +168,14 @@ function NewContractModal({ open, onClose }: { open: boolean; onClose: () => voi
             </Field>
             <Field label="Valor total da venda">
               <MoneyInput
-                value={parseMoney(form.totalValue)}
-                onValueChange={(n) => setForm((f) => ({ ...f, totalValue: String(n) }))}
+                value={form.totalValue}
+                onValueChange={(n) => setForm((f) => ({ ...f, totalValue: n }))}
               />
             </Field>
             <Field label="Valor da entrada">
               <MoneyInput
-                value={parseMoney(form.downPaymentValue)}
-                onValueChange={(n) => setForm((f) => ({ ...f, downPaymentValue: String(n) }))}
+                value={form.downPaymentValue}
+                onValueChange={(n) => setForm((f) => ({ ...f, downPaymentValue: n }))}
               />
             </Field>
             <Field label="Parcelas da entrada">
@@ -204,7 +213,7 @@ function NewContractModal({ open, onClose }: { open: boolean; onClose: () => voi
             <Button variant="secondary" onClick={onClose}>
               Cancelar
             </Button>
-            <Button onClick={save}>Criar contrato</Button>
+            <Button onClick={save} disabled={!canSave}>Criar contrato</Button>
           </div>
         </>
       )}

@@ -454,7 +454,7 @@ function PagamentosTab({
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   {p.installmentType === 'amortizacao' ? (
-                    <Button size="sm" variant="ghost" onClick={() => deletePayment(p.id)}>
+                    <Button size="sm" variant="ghost" onClick={() => window.confirm('Remover este lançamento? Esta ação não pode ser desfeita.') && deletePayment(p.id)}>
                       Remover
                     </Button>
                   ) : (

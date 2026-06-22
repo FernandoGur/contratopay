@@ -424,7 +424,9 @@ export function simulateExtraPayment(
   // O extra é um pagamento à PARTE da parcela do mês. No máximo ele zera o
   // saldo que sobra DEPOIS da parcela atual (saldo − parcela).
   const maxExtra = target ? Math.max(0, openBalance - principalToday) : 0
-  const extra = target ? Math.max(0, Math.min(rawExtra, maxExtra)) : Math.max(0, rawExtra)
+  // Sem parcela em aberto (contrato quitado) não há o que amortizar: extra = 0
+  // (antes retornava o valor digitado, sugerindo "pague R$ X" com saldo zero).
+  const extra = target ? Math.max(0, Math.min(rawExtra, maxExtra)) : 0
 
   if (!target || extra <= 0) {
     const cur = round2(principalToday)
