@@ -1038,6 +1038,32 @@ function ReviewReceiptModal({
                   <button onClick={() => setCount((c) => Math.min(antSim.maxCount, c + 1))} className="h-7 w-7 rounded-lg bg-white ring-1 ring-ink-200">+</button>
                 </div>
               </div>
+
+              {/* Quais parcelas serão dadas como quitadas (segurança p/ decisão) */}
+              <div className="mt-2.5 rounded-lg bg-white p-2.5 ring-1 ring-brand-200/70">
+                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+                  Parcelas que serão quitadas ({antSim.count})
+                </div>
+                <div className="max-h-40 space-y-1 overflow-auto">
+                  {openFin.slice(-antSim.count).map((r) => (
+                    <div key={r.number} className="flex items-center justify-between text-xs">
+                      <span className="text-ink-600">
+                        Parcela <b className="font-semibold text-ink-800">#{r.number}</b> · vence {formatDateBR(r.dueDate)}
+                      </span>
+                      <span className="num-display text-ink-700">{brl(r.value)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-1.5 flex justify-between border-t border-ink-100 pt-1.5 text-xs font-semibold">
+                  <span className="text-ink-600">Faixa quitada</span>
+                  <span className="text-ink-800">
+                    {antSim.count > 1
+                      ? `#${openFin.slice(-antSim.count)[0]?.number} a #${openFin[openFin.length - 1]?.number}`
+                      : `#${openFin[openFin.length - 1]?.number}`}
+                  </span>
+                </div>
+              </div>
+
               <div className="mt-2 space-y-1">
                 <Row label="Você paga hoje" value={brl(antSim.payToday)} />
                 <Row label="Valor cheio no futuro (c/ IPCA)" value={brl(antSim.futureValueWithIpca)} />
