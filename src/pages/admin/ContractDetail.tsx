@@ -189,6 +189,8 @@ function EditContractModal({
   const [title, setTitle] = useState(c.title)
   const [status, setStatus] = useState(c.status)
   const [ipcaText, setIpcaText] = useState(String((c.forecastAnnualIpca * 100).toString().replace('.', ',')))
+  const [firstDue, setFirstDue] = useState(c.firstInstallmentDueDate ?? c.financingStartDate)
+  const [corrBase, setCorrBase] = useState(c.correctionBaseDate)
   const [clientNotes, setClientNotes] = useState(c.clientNotes)
   const [internalNotes, setInternalNotes] = useState(c.internalNotes)
 
@@ -198,6 +200,10 @@ function EditContractModal({
       title: title.trim(),
       status,
       forecastAnnualIpca: (parseFloat(ipcaText.replace(',', '.')) || 0) / 100,
+      // 1ª parcela define a cadência (todas as parcelas a partir dela, mesmo dia).
+      financingStartDate: firstDue,
+      firstInstallmentDueDate: firstDue,
+      correctionBaseDate: corrBase,
       clientNotes,
       internalNotes,
     })
@@ -223,6 +229,12 @@ function EditContractModal({
         </Field>
         <Field label="IPCA estimado (% ao ano)" hint="Usado nas simulações/projeções.">
           <Input value={ipcaText} onChange={(e) => setIpcaText(e.target.value)} />
+        </Field>
+        <Field label="1ª parcela do financiamento" hint="Define o dia de vencimento de todas as parcelas.">
+          <Input type="date" value={firstDue} onChange={(e) => setFirstDue(e.target.value)} />
+        </Field>
+        <Field label="Data-base da correção (IPCA)" hint="1º reajuste 12 meses depois.">
+          <Input type="date" value={corrBase} onChange={(e) => setCorrBase(e.target.value)} />
         </Field>
         <div className="sm:col-span-2">
           <Field label="Observações visíveis ao cliente">

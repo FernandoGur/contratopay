@@ -40,7 +40,7 @@ export function makeSeed(): Database {
     updatedAt: now(),
   }
 
-  const financingStart = '2026-06-15'
+  const financingStart = '2026-07-01' // vencimentos no dia 01; 1ª parcela 01/07/2026
   const downStart = addMonths(financingStart, -12) // entrada nos 12 meses anteriores
 
   const contract: Contract = {
@@ -54,10 +54,10 @@ export function makeSeed(): Database {
     financedValue: 332500,
     financingInstallments: 60,
     financingStartDate: financingStart,
-    firstInstallmentDueDate: '2026-06-22', // 1ª parcela vence 22/06; demais no dia 15
     baseInstallmentValue: 5541.67,
     correctionType: 'ipca_anual',
-    correctionBaseDate: '2026-06-15',
+    // Base = 1ª parcela: 1º reajuste 12 meses depois (01/07/2027).
+    correctionBaseDate: '2026-07-01',
     correctionFrequencyMonths: 12,
     status: 'ativo',
     internalNotes:

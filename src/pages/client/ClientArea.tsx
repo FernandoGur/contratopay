@@ -1207,7 +1207,7 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
             placeholder="R$ 0,00"
           />
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {[1000, 5000, 10000, 20000].map((v) => (
+            {[1000, 5000, 10000].map((v) => (
               <button
                 key={v}
                 onClick={() => setExtraText(num(v))}
@@ -1722,13 +1722,14 @@ function ParcelasTab({
         )}
       </Card>
 
-      <div className="flex gap-1.5">
+      <div className="inline-flex gap-1 rounded-xl bg-ink-100 p-1">
         {(['todas', 'pagas', 'a_vencer'] as Filter[]).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
-              filter === f ? 'bg-brand-600 text-white' : 'bg-white text-ink-500 ring-1 ring-ink-200'
+            aria-current={filter === f ? 'true' : undefined}
+            className={`rounded-lg px-3.5 py-1.5 text-sm font-semibold transition-all ${
+              filter === f ? 'bg-white text-brand-700 shadow-sm' : 'text-ink-500 hover:text-ink-800'
             }`}
           >
             {f === 'todas' ? 'Todas' : f === 'pagas' ? 'Pagas' : 'A vencer'}
