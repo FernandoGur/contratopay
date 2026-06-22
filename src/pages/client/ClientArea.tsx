@@ -1178,6 +1178,7 @@ function ParcelasTab({
         ))}
       </div>
 
+      {filter !== 'pagas' && (
       <Card className="p-0">
         <div className="divide-y divide-ink-100">
           {visible.map((r) => {
@@ -1270,12 +1271,16 @@ function ParcelasTab({
           })}
         </div>
       </Card>
+      )}
 
-      {extrato.length > 0 && (
+      {filter === 'pagas' && (
         <Card className="p-0">
           <div className="border-b border-ink-100 px-5 py-3.5">
             <h3 className="font-display text-base font-semibold text-ink-900">Extrato de pagamentos</h3>
           </div>
+          {extrato.length === 0 && (
+            <p className="px-5 py-10 text-center text-sm text-ink-400">Nenhum pagamento ainda.</p>
+          )}
           <div className="divide-y divide-ink-100">
             {extrato.map((p) => {
               const isAmort =
