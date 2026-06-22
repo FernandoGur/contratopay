@@ -1018,9 +1018,6 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
   const [copied, setCopied] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
 
-  const saldo = calc.state.currentBalance
-  const vincendas = calc.state.financingRemaining
-  const currentParcela = vincendas > 0 ? saldo / vincendas : 0
   const target = parseMoney(targetText)
 
   // Bloqueia amortizar enquanto houver parcela do mês corrente (ou vencida) em
@@ -1029,12 +1026,21 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
   const nextOpen = openFin[0]
   const blockAmortize = !!nextOpen && nextOpen.dueDate.slice(0, 7) <= todayISO().slice(0, 7)
 
-  // No modo "parcela", o extra é deduzido da parcela desejada.
+  // Baseline (sem extra) da MESMA engine que calcula a "nova parcela" exibida.
+  // Usar essa base (e não state.currentBalance/financingRemaining, que divergem
+  // após antecipações) garante que, ao escolher uma parcela-alvo, a nova parcela
+  // bata EXATAMENTE com o alvo escolhido.
+  const sim0 = useMemo(() => simulateExtraPayment(calc.contract, calc.scheduleOpts, 0), [calc])
+  const currentParcela = sim0.currentInstallmentEstimate
+  const vincendas = currentParcela > 0 ? Math.round(sim0.balanceBefore / currentParcela) : 0
+  const saldoBase = sim0.balanceBefore
+
+  // No modo "parcela", o extra é o que falta para a nova parcela chegar no alvo.
   const extra =
     inputMode === 'valor'
       ? parseMoney(extraText)
       : target > 0 && target < currentParcela
-        ? Math.max(0, saldo - target * vincendas)
+        ? Math.max(0, saldoBase - target * vincendas)
         : 0
 
   const sim = useMemo(

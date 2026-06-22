@@ -398,21 +398,31 @@ export function simulateExtraPayment(
   const openFin = baseSchedule.rows.filter((r) => r.status !== 'paga')
   const target = openFin[0]
 
+  // Saldo em aberto CIENTE de antecipações: o cronograma pressupõe pagamento
+  // sequencial, então target.balanceBefore conta também as parcelas já quitadas
+  // antecipadamente (lá no fim). O principal de hoje por parcela é o saldo do
+  // ponto ÷ slots originais (incluindo as antecipadas) = exatamente o valor da
+  // parcela; o saldo em aberto real é (parcelas abertas) × esse principal. Mesma
+  // base do computeContractState — mantém Início, simulação e parcelas coerentes.
+  const slotsFromTarget = target
+    ? baseSchedule.rows.filter((r) => r.number >= target.number).length
+    : 0
+  const principalToday = target && slotsFromTarget > 0 ? target.balanceBefore / slotsFromTarget : 0
+  const openBalance = round2(openFin.length * principalToday)
+
   // O extra é um pagamento à PARTE da parcela do mês. No máximo ele zera o
-  // saldo que sobra DEPOIS da parcela atual (saldo − parcela). Limitar ao saldo
-  // cheio faria o cliente pagar a mais que o devido (parcela + extra > saldo) e
-  // deixava a economia de IPCA menor que a quitação equivalente.
-  const maxExtra = target ? Math.max(0, target.balanceBefore - target.value) : 0
+  // saldo que sobra DEPOIS da parcela atual (saldo − parcela).
+  const maxExtra = target ? Math.max(0, openBalance - principalToday) : 0
   const extra = target ? Math.max(0, Math.min(rawExtra, maxExtra)) : Math.max(0, rawExtra)
 
   if (!target || extra <= 0) {
-    const cur = target ? target.value : 0
+    const cur = round2(principalToday)
     return {
       currentInstallment: cur,
       extra: round2(Math.max(extra, 0)),
       totalToPayNow: round2(cur + Math.max(extra, 0)),
-      balanceBefore: target ? target.balanceBefore : 0,
-      balanceAfter: target ? round2(target.balanceBefore) : 0,
+      balanceBefore: openBalance,
+      balanceAfter: openBalance,
       currentInstallmentEstimate: cur,
       newInstallmentEstimate: cur,
       monthlySavings: 0,
@@ -425,11 +435,11 @@ export function simulateExtraPayment(
   }
 
   // Fórmula da especificação (visão do cliente — seção 13):
-  //   saldo_atual = saldo devedor antes da parcela do mês
+  //   saldo_atual = saldo devedor em aberto antes da parcela do mês
   //   vincendas   = parcelas do financiamento em aberto (incluindo a atual)
   //   nova_parcela = (saldo_atual − extra) / vincendas
   const vincendas = openFin.length
-  const balanceBefore = target.balanceBefore
+  const balanceBefore = openBalance
   const balanceAfter = balanceBefore - extra
   const currentInstallmentEstimate = balanceBefore / vincendas
   const newInstallmentEstimate = balanceAfter / vincendas
@@ -519,23 +529,33 @@ export function simulateAnticipateLast(
   const openFin = baseSchedule.rows.filter((r) => r.status !== 'paga')
   const maxCount = openFin.length
 
+  // Principal de hoje por parcela CIENTE de antecipações: saldo do ponto ÷ slots
+  // ORIGINAIS a partir da próxima em aberto (inclui as já antecipadas), e NÃO ÷
+  // parcelas abertas. Dividir por maxCount (só abertas) superfaturava o valor de
+  // hoje quando já havia antecipações — cobrando a mais e gerando "desconto"
+  // negativo. Mesma base do computeContractState (saldo atual da tela Início).
+  const slotsFromTarget = openFin[0]
+    ? baseSchedule.rows.filter((r) => r.number >= openFin[0].number).length
+    : 0
+  const principalToday = openFin[0] && slotsFromTarget > 0 ? openFin[0].balanceBefore / slotsFromTarget : 0
+  const openBalance = round2(maxCount * principalToday)
+
   const empty: AnticipateLastSimulation = {
     count: 0,
     maxCount,
-    currentInstallment: openFin[0] ? round2(openFin[0].balanceBefore / maxCount) : 0,
+    currentInstallment: round2(principalToday),
     payToday: 0,
     futureValueWithIpca: 0,
     ipcaDiscount: 0,
     newLastInstallmentNumber: openFin.length ? openFin[openFin.length - 1].number : null,
     newLastInstallmentDate: openFin.length ? openFin[openFin.length - 1].dueDate : null,
-    balanceAfter: openFin[0] ? round2(openFin[0].balanceBefore) : 0,
+    balanceAfter: openBalance,
     remainingAfter: maxCount,
   }
   if (!openFin.length || count <= 0) return empty
 
   const k = Math.min(Math.floor(count), maxCount)
-  const balanceNow = openFin[0].balanceBefore
-  const currentInstallment = balanceNow / maxCount // valor de hoje (principal)
+  const currentInstallment = principalToday // valor de hoje (principal)
   const payToday = currentInstallment * k
 
   const lastK = openFin.slice(maxCount - k)
@@ -554,7 +574,7 @@ export function simulateAnticipateLast(
     ipcaDiscount: round2(ipcaDiscount),
     newLastInstallmentNumber: newLast ? newLast.number : null,
     newLastInstallmentDate: newLast ? newLast.dueDate : null,
-    balanceAfter: round2(balanceNow - payToday),
+    balanceAfter: round2(openBalance - payToday),
     remainingAfter,
   }
 }
