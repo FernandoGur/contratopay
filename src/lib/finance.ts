@@ -307,7 +307,13 @@ export function computeContractState(
   if (nextOpen) {
     const vincendas = finRows.filter((r) => r.number >= nextOpen.number).length
     const principalHoje = vincendas > 0 ? nextOpen.balanceBefore / vincendas : 0
-    currentBalance = openFin.length * principalHoje
+    // Amortizações já pagas no ponto atual ou à frente ainda NÃO estão embutidas
+    // em nextOpen.balanceBefore (o cronograma as aplica depois da parcela), mas
+    // já reduziram o que o cliente deve — descontam do saldo atual.
+    const amortAhead = finRows
+      .filter((r) => r.number >= nextOpen.number)
+      .reduce((s, r) => s + (r.amortization ?? 0), 0)
+    currentBalance = Math.max(0, openFin.length * principalHoje - amortAhead)
   } else if (paidFin.length > 0) {
     currentBalance = 0 // tudo quitado
   }
@@ -408,7 +414,12 @@ export function simulateExtraPayment(
     ? baseSchedule.rows.filter((r) => r.number >= target.number).length
     : 0
   const principalToday = target && slotsFromTarget > 0 ? target.balanceBefore / slotsFromTarget : 0
-  const openBalance = round2(openFin.length * principalToday)
+  const amortAhead = target
+    ? baseSchedule.rows
+        .filter((r) => r.number >= target.number)
+        .reduce((s, r) => s + (r.amortization ?? 0), 0)
+    : 0
+  const openBalance = round2(Math.max(0, openFin.length * principalToday - amortAhead))
 
   // O extra é um pagamento à PARTE da parcela do mês. No máximo ele zera o
   // saldo que sobra DEPOIS da parcela atual (saldo − parcela).
@@ -538,7 +549,12 @@ export function simulateAnticipateLast(
     ? baseSchedule.rows.filter((r) => r.number >= openFin[0].number).length
     : 0
   const principalToday = openFin[0] && slotsFromTarget > 0 ? openFin[0].balanceBefore / slotsFromTarget : 0
-  const openBalance = round2(maxCount * principalToday)
+  const amortAhead = openFin[0]
+    ? baseSchedule.rows
+        .filter((r) => r.number >= openFin[0].number)
+        .reduce((s, r) => s + (r.amortization ?? 0), 0)
+    : 0
+  const openBalance = round2(Math.max(0, maxCount * principalToday - amortAhead))
 
   const empty: AnticipateLastSimulation = {
     count: 0,

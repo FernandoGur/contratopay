@@ -16,6 +16,8 @@ import { formatDateBR, formatMonthBR, todayISO } from '@/lib/dates'
 import { openReceipt } from '@/lib/receipt'
 import { parseReceiptNotes } from '@/lib/requests'
 import {
+  openBalanceAfter,
+  projectOpenCorrections,
   simulateAnticipateLast,
   simulateExtraPayment,
   summarizeByYear,
@@ -340,7 +342,7 @@ function CronogramaTab({
                 <td className="px-4 py-2.5 tnum text-ink-600">{formatDateBR(r.dueDate)}</td>
                 <td className="px-4 py-2.5 text-right tnum font-medium text-ink-900">{brl(r.value)}</td>
                 <td className="px-4 py-2.5 text-right tnum text-ink-500">
-                  {r.type === 'financiamento' ? brl(r.balanceAfter) : '—'}
+                  {r.type === 'financiamento' ? brl(openBalanceAfter(calc.schedule.rows, r)) : '—'}
                 </td>
                 <td className="px-4 py-2.5">
                   <Badge tone={INSTALLMENT_STATUS_TONE[r.status]}>
@@ -546,18 +548,18 @@ function IpcaTab({
 
       <Card>
         <h3 className="mb-3 text-base font-semibold text-ink-900">Correções IPCA</h3>
-        {calc.schedule.corrections.length === 0 ? (
+        {projectOpenCorrections(calc.schedule).length === 0 ? (
           <p className="text-sm text-ink-400">Nenhuma correção no horizonte.</p>
         ) : (
           <div className="space-y-2">
-            {calc.schedule.corrections.map((c) => (
+            {projectOpenCorrections(calc.schedule).map((c) => (
               <div key={c.index} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ink-200 px-4 py-3">
                 <div>
                   <div className="font-medium text-ink-800">
                     {c.index}ª correção · {formatDateBR(c.date)}
                   </div>
                   <div className="text-sm text-ink-500">
-                    A partir da parcela #{c.fromInstallment} · {c.installmentsAffected} parcelas
+                    A partir da parcela #{c.fromInstallment} · {c.installmentsOpen} parcelas
                   </div>
                 </div>
                 <div className="flex items-center gap-4">

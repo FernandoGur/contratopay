@@ -26,8 +26,12 @@ export function parseReceiptNotes(notes: string | null | undefined): ReceiptMeta
   if (!raw || raw[0] !== '{') return { file: raw }
   try {
     const o = JSON.parse(raw) as { file?: unknown; intent?: ExtraIntent }
-    if (o && typeof o === 'object' && o.intent && o.intent.mode) {
-      return { file: typeof o.file === 'string' ? o.file : '', intent: o.intent }
+    if (o && typeof o === 'object' && !Array.isArray(o)) {
+      const file = typeof o.file === 'string' ? o.file : ''
+      // Só trata como pedido se a intenção estiver íntegra (tem mode). JSON
+      // parcialmente corrompido (sem mode) não vira pedido, mas preserva o nome.
+      const intent = o.intent && o.intent.mode ? o.intent : undefined
+      return { file, intent }
     }
   } catch {
     /* não é JSON → texto puro (nome do arquivo) */

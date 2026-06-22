@@ -1196,11 +1196,10 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
           {/* Até quando esse valor vale — reajuste anual pelo IPCA */}
           {nextCorrection && (
             <div className="rounded-xl border border-ink-200 p-3.5">
-              <div className="text-sm font-semibold text-ink-800">Até quando esse valor vale</div>
+              <div className="text-sm font-semibold text-ink-800">Esse valor vale até o próximo reajuste</div>
               <p className="mt-1 text-xs text-ink-500">
-                A parcela é calculada em reais de hoje. A cada 12 meses ela é reajustada pela
-                inflação (IPCA), como todas as outras — então não fica fixa nesse valor. O que você
-                amortiza agora reduz a base de todos os reajustes seguintes.
+                Toda parcela sobe pela inflação (IPCA) uma vez por ano — ela não fica parada nesse
+                valor. Veja quanto você paga agora e quanto fica depois do reajuste:
               </p>
               <div className="mt-3 flex items-stretch gap-2 text-center">
                 <div className="flex-1 rounded-lg bg-pos-50 p-2.5 ring-1 ring-pos-500/20">
@@ -1459,14 +1458,21 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
           <Row label="Você paga hoje" value={brl(sim.payToday)} strong />
         </div>
 
-        <div className="rounded-xl border border-pos-500/20 bg-pos-50 p-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-pos-700">
-            Desconto de IPCA (você economiza)
+        {sim.ipcaDiscount > 0 ? (
+          <div className="rounded-xl border border-pos-500/20 bg-pos-50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-wider text-pos-700">
+              Desconto de IPCA (você economiza)
+            </div>
+            <div className="num-display mt-1 text-3xl font-extrabold text-pos-600">
+              {brl(sim.ipcaDiscount)}
+            </div>
           </div>
-          <div className="num-display mt-1 text-3xl font-extrabold text-pos-600">
-            {brl(sim.ipcaDiscount)}
+        ) : (
+          <div className="rounded-xl border border-ink-200 bg-ink-50 p-4 text-sm text-ink-600">
+            Com a inflação estimada atual, antecipar agora não gera desconto — você pagaria
+            praticamente o mesmo valor de hoje. Faz sentido antecipar quando há IPCA a evitar.
           </div>
-        </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-xl bg-ink-50 p-3">
