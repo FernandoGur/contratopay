@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import { Navigate, useParams } from 'react-router-dom'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import {
   getActivePixKey,
   getContractCalc,
@@ -45,8 +45,15 @@ const CLIENT_TABS: { id: ClientTab; label: string }[] = [
 export function ClientArea() {
   const user = useCurrentUser()
   const params = useParams<{ id: string }>()
+  const navigate = useNavigate()
   // Cliente logado vê o próprio contrato; admin pode abrir via link com :id.
   const calc = useResolvedContract(params.id, user)
+
+  // Sair: encerra a sessão e leva ao login (não depende só do redirect de render).
+  const handleLogout = async () => {
+    await logout()
+    navigate('/', { replace: true })
+  }
   const [tab, setTab] = useState<ClientTab>('inicio')
   const [simMode, setSimMode] = useState<'reduzir' | 'antecipar'>('reduzir')
   const [parcelasFilter, setParcelasFilter] = useState<Filter>('todas')
@@ -81,12 +88,16 @@ export function ClientArea() {
   // Deslogado não fica preso: manda para o login.
   if (!user) return <Navigate to="/" replace />
 
+  // O cliente não vê o id do contrato na URL — usa sempre /cliente (o app
+  // resolve o contrato dele pelo login). O id só serve ao preview do admin.
+  if (user.role === 'cliente' && params.id) return <Navigate to="/cliente" replace />
+
   if (!calc) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-ink-500">Contrato não encontrado ou indisponível para a sua conta.</p>
         <button
-          onClick={logout}
+          onClick={handleLogout}
           className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
         >
           Sair e entrar com outra conta
@@ -132,7 +143,7 @@ export function ClientArea() {
             </div>
             {user && (
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 aria-label="Sair da conta"
                 className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-ink-500 hover:bg-ink-100 hover:text-ink-800"
               >
