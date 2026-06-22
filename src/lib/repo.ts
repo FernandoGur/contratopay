@@ -332,7 +332,9 @@ export function getContractCalc(contractId: string): ContractCalc | null {
   const paidDown = new Set<number>()
   const amortizations: AppliedAmortizations = {}
   for (const p of payments) {
-    if (p.status === 'pago') {
+    // Só quita a parcela se foi efetivamente paga (valor > 0). Um comprovante
+    // aprovado sem valor (R$ 0,00) NÃO deve dar a parcela como quitada.
+    if (p.status === 'pago' && p.amount > 0) {
       if (p.installmentType === 'financiamento') paidFin.add(p.installmentNumber)
       else paidDown.add(p.installmentNumber)
     }
