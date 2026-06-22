@@ -290,14 +290,21 @@ export function computeContractState(
   const openFin = finRows.filter((r) => r.status !== 'paga')
   const paidDown = downRows.filter((r) => r.status === 'paga')
 
-  // Saldo atual = saldo após a última parcela paga do financiamento (ou valor
-  // financiado, se nenhuma paga ainda).
-  let currentBalance = contract.financedValue
-  if (paidFin.length > 0) {
-    currentBalance = paidFin[paidFin.length - 1].balanceAfter
-  }
-
   const nextOpen = openFin[0] ?? null
+
+  // Saldo atual = saldo entrando na próxima parcela em aberto, descontadas as
+  // parcelas já quitadas que estão DEPOIS dela (antecipação das últimas). No
+  // pagamento sequencial não há parcela paga após a próxima, então isso é
+  // idêntico ao saldo após a última parcela paga.
+  let currentBalance = contract.financedValue
+  if (nextOpen) {
+    const paidAfterNext = paidFin
+      .filter((r) => r.number > nextOpen.number)
+      .reduce((s, r) => s + r.value, 0)
+    currentBalance = Math.max(0, nextOpen.balanceBefore - paidAfterNext)
+  } else if (paidFin.length > 0) {
+    currentBalance = 0 // tudo quitado
+  }
   const totalAmortized = round2(
     finRows.reduce((s, r) => s + (r.amortization ?? 0), 0),
   )

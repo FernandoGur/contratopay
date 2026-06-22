@@ -23,7 +23,6 @@ import {
   INSTALLMENT_STATUS_LABEL,
   INSTALLMENT_STATUS_TONE,
   MoneyInput,
-  PAYMENT_STATUS_LABEL,
   Row,
 } from '@/components/ui'
 import { Logo } from '@/components/Logo'
@@ -33,7 +32,6 @@ type ClientTab = 'inicio' | 'parcelas' | 'pagamentos' | 'simular' | 'previsao' |
 const CLIENT_TABS: { id: ClientTab; label: string }[] = [
   { id: 'inicio', label: 'Início' },
   { id: 'parcelas', label: 'Minhas parcelas' },
-  { id: 'pagamentos', label: 'Pagamentos' },
   { id: 'simular', label: 'Pagar a mais' },
   { id: 'previsao', label: 'Previsão' },
   { id: 'contrato', label: 'Meu contrato' },
@@ -143,7 +141,6 @@ export function ClientArea() {
                 }}
               />
             )}
-            {tab === 'pagamentos' && <PagamentosClientTab calc={calc} />}
             {tab === 'simular' && <ExtraBlock calc={calc} initialMode={simMode} />}
             {tab === 'previsao' && <PrevisaoTab calc={calc} />}
             {tab === 'contrato' && <ContratoTab calc={calc} pix={pix} />}
@@ -337,8 +334,8 @@ function InicioDashboard({
 
         {/* Coluna lateral: próximas parcelas + histórico numa única caixa */}
         <Card className="flex flex-col p-0">
-          <div className="flex items-center justify-between border-b border-ink-100 px-5 py-3.5">
-            <h3 className="font-display text-base font-semibold text-ink-900">Próximas parcelas</h3>
+          <div className="flex items-center justify-between px-5 pb-2.5 pt-4">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Próximas parcelas</h3>
             <button onClick={onVerParcelas} className="text-sm font-semibold text-brand-600 hover:underline">
               Ver todas
             </button>
@@ -400,24 +397,31 @@ function InicioDashboard({
 
           {recentPayments.length > 0 && (
             <>
-              <div className="flex items-center justify-between border-t border-ink-100 px-5 py-3.5">
-                <h3 className="font-display text-base font-semibold text-ink-900">Histórico recente</h3>
-                <button onClick={onVerParcelas} className="text-sm font-semibold text-brand-600 hover:underline">
-                  Ver todas
+              <div className="mt-2 flex items-center justify-between border-t border-ink-100 px-5 pb-2.5 pt-5">
+                <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Histórico recente</h3>
+                <button onClick={onVerParcelas} className="text-sm font-medium text-brand-600 hover:underline">
+                  Ver tudo
                 </button>
               </div>
-              <div className="divide-y divide-ink-100">
+              <div>
                 {recentPayments.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between px-5 py-2.5">
-                    <div>
-                      <div className="text-sm font-semibold text-ink-800">
-                        {p.installmentType === 'entrada' ? 'Entrada' : 'Parcela'} {p.installmentNumber}
+                  <div key={p.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-pos-50 text-pos-600">
+                        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="m5 12 5 5L20 7" />
+                        </svg>
                       </div>
-                      <div className="text-xs text-ink-400">{formatDateBR(p.paymentDate)}</div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-ink-800">
+                          {p.installmentType === 'entrada' ? 'Entrada' : 'Parcela'} {p.installmentNumber}
+                        </div>
+                        <div className="text-xs text-ink-400">pago {formatDateBR(p.paymentDate)}</div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2.5">
-                      <span className="num-display text-sm font-semibold text-ink-800">{brl(p.amount)}</span>
-                      <Badge tone="pos">Pago</Badge>
+                    <div className="shrink-0 text-right">
+                      <div className="num-display text-sm font-semibold text-ink-800">{brl(p.amount)}</div>
+                      <div className="text-[11px] font-medium text-pos-600">Pago</div>
                     </div>
                   </div>
                 ))}
@@ -1113,6 +1117,19 @@ function ParcelasTab({
         </Card>
       </div>
 
+      <Card className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Total já pago</div>
+          <div className="num-display mt-0.5 text-lg font-bold text-pos-600">{brl(calc.state.totalPaid)}</div>
+        </div>
+        {calc.state.totalAmortized > 0 && (
+          <div className="text-right">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Pagamentos extras (amortizações)</div>
+            <div className="num-display mt-0.5 text-lg font-bold text-ink-800">{brl(calc.state.totalAmortized)}</div>
+          </div>
+        )}
+      </Card>
+
       <div className="flex gap-1.5">
         {(['todas', 'pagas', 'a_vencer'] as Filter[]).map((f) => (
           <button
@@ -1209,49 +1226,6 @@ function ParcelasTab({
       <p className="text-center text-xs text-ink-400">
         O saldo devedor e as parcelas futuras são estimativas e podem mudar com a correção anual do IPCA.
       </p>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Aba: Pagamentos (comprovantes e status)
-// ---------------------------------------------------------------------------
-function PagamentosClientTab({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
-  const payments = calc.payments
-  return (
-    <div className="space-y-4">
-      <Card>
-        <Row label="Total já pago" value={brl(calc.state.totalPaid)} strong />
-        <Row label="Pagamentos extras (amortizações)" value={brl(calc.state.totalAmortized)} />
-      </Card>
-      <Card className="p-0">
-        <div className="divide-y divide-ink-100">
-          {payments.map((p) => (
-            <div key={p.id} className="flex items-center justify-between px-4 py-3">
-              <div>
-                <div className="text-sm font-semibold text-ink-800">
-                  {p.installmentType === 'entrada' ? 'Entrada' : 'Parcela'} {p.installmentNumber}
-                </div>
-                <div className="text-xs text-ink-400">
-                  {formatDateBR(p.paymentDate)}
-                  {p.amortizationAmount > 0 ? ` · extra ${brl(p.amortizationAmount)}` : ''}
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="num-display text-sm font-bold text-ink-900">{brl(p.amount)}</span>
-                <Badge tone={p.status === 'pago' ? 'pos' : p.status === 'comprovante_enviado' ? 'warn' : 'muted'}>
-                  {PAYMENT_STATUS_LABEL[p.status]}
-                </Badge>
-              </div>
-            </div>
-          ))}
-          {payments.length === 0 && (
-            <p className="py-10 text-center text-sm text-ink-400">
-              Nenhum pagamento registrado ainda.
-            </p>
-          )}
-        </div>
-      </Card>
     </div>
   )
 }
