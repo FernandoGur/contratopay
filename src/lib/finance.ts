@@ -385,11 +385,12 @@ export function simulateExtraPayment(
   const openFin = baseSchedule.rows.filter((r) => r.status !== 'paga')
   const target = openFin[0]
 
-  // Invariante: o pagamento extra nunca é negativo e nunca excede o saldo
-  // devedor (no máximo quita o contrato). Protege contra parcela/saldo negativos.
-  const extra = target
-    ? Math.max(0, Math.min(rawExtra, target.balanceBefore))
-    : Math.max(0, rawExtra)
+  // O extra é um pagamento à PARTE da parcela do mês. No máximo ele zera o
+  // saldo que sobra DEPOIS da parcela atual (saldo − parcela). Limitar ao saldo
+  // cheio faria o cliente pagar a mais que o devido (parcela + extra > saldo) e
+  // deixava a economia de IPCA menor que a quitação equivalente.
+  const maxExtra = target ? Math.max(0, target.balanceBefore - target.value) : 0
+  const extra = target ? Math.max(0, Math.min(rawExtra, maxExtra)) : Math.max(0, rawExtra)
 
   if (!target || extra <= 0) {
     const cur = target ? target.value : 0

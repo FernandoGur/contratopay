@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   getActivePixKey,
@@ -9,8 +9,13 @@ import {
 } from '@/lib/repo'
 import { useCurrentUser, useDb } from '@/lib/store'
 import { brl, num, parseMoney, pct } from '@/lib/format'
-import { formatDateBR, formatMonthBR } from '@/lib/dates'
-import { generateSchedule, simulateAnticipateLast, simulateExtraPayment } from '@/lib/finance'
+import { formatDateBR } from '@/lib/dates'
+import {
+  generateSchedule,
+  simulateAnticipateLast,
+  simulateExtraPayment,
+  summarizeByYear,
+} from '@/lib/finance'
 import {
   Badge,
   Button,
@@ -192,9 +197,13 @@ function InicioDashboard({
   )
   const entradaDone = downRows.length > 0 && paidDown === downRows.length
   const upcoming = finRows.filter((r) => r.status !== 'paga').slice(0, 3)
+  // Ordem global da parcela (entrada 1–12, depois financiamento) para desempate.
+  const payOrder = (p: (typeof calc.payments)[number]) =>
+    (p.installmentType === 'financiamento' ? 1000 : 0) + p.installmentNumber
   const recentPayments = [...calc.payments]
     .filter((p) => p.status === 'pago')
-    .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate))
+    // Mais recente primeiro; no mesmo dia, a parcela mais recente vem antes.
+    .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate) || payOrder(b) - payOrder(a))
     .slice(0, 3)
 
   return (
@@ -1034,6 +1043,19 @@ function ParcelasTab({
   const paidCount = rows.filter((r) => r.status === 'paga').length
   const openCount = rows.length - paidCount
 
+  // Ao abrir a aba (inclusive via "Ver todas"), rola até a última parcela paga.
+  const paidRows = rows.filter((r) => r.status === 'paga')
+  const lastPaid = paidRows[paidRows.length - 1]
+  const lastPaidKey = lastPaid ? `${lastPaid.type}-${lastPaid.number}` : null
+  const lastPaidRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const t = setTimeout(
+      () => lastPaidRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+      80,
+    )
+    return () => clearTimeout(t)
+  }, [])
+
   const visible = rows.filter((r) =>
     filter === 'todas'
       ? true
@@ -1127,7 +1149,10 @@ function ParcelasTab({
                     </span>
                   </div>
                 )}
-                <div className={`px-4 py-3 ${isLast ? 'bg-pos-50' : ''}`}>
+                <div
+                  ref={`${r.type}-${r.number}` === lastPaidKey ? lastPaidRef : undefined}
+                  className={`px-4 py-3 ${isLast ? 'bg-pos-50' : ''}`}
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-1.5 text-sm font-semibold text-ink-800">
@@ -1305,7 +1330,7 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
         </p>
       </Card>
 
-      <SaldoDevedorChart schedule={simSchedule} financedValue={calc.contract.financedValue} />
+      <SaldoDevedorChart schedule={simSchedule} />
 
       <div className="px-1 pt-1">
         <h3 className="font-display text-base font-bold text-ink-900">Atualização pela inflação, ano a ano</h3>
@@ -1314,52 +1339,38 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
 
       {corrections.map((c) => {
         const isNext = c.date === nextDate
-        const deltaBalance = c.balanceAfter - c.balanceBefore
         return (
-          <Card key={c.index} className="card-hover overflow-hidden p-0">
-            <div className="flex items-center justify-between px-4 py-3">
-              <div className="flex items-center gap-2.5">
-                <span className={`h-2.5 w-2.5 rounded-full ${isNext ? 'bg-brand-600' : 'bg-ink-300'}`} />
-                <div>
-                  <div className="font-display text-base font-bold text-ink-900">
-                    {formatDateBR(c.date)}
-                  </div>
-                  <div className="text-xs text-ink-400">
-                    {c.index}ª atualização pela inflação{isNext ? ' · a próxima' : ''}
+          <Card key={c.index} className="card-hover p-0">
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${isNext ? 'bg-brand-600' : 'bg-ink-300'}`} />
+                <div className="min-w-0">
+                  <div className="font-display text-sm font-bold text-ink-900">{formatDateBR(c.date)}</div>
+                  <div className="text-[11px] text-ink-400">
+                    {c.index}ª atualização{isNext ? ' · a próxima' : ''}
                   </div>
                 </div>
               </div>
-              <Badge tone="info">{c.isOfficial ? 'IPCA' : 'IPCA estimado'} {pct(c.ipca)}</Badge>
+              <Badge tone="info">{c.isOfficial ? 'IPCA' : 'IPCA est.'} {pct(c.ipca)}</Badge>
             </div>
 
-            <div className="px-4 pb-1">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
-                Saldo atualizado pela inflação
+            <div className="space-y-1.5 border-t border-ink-100 px-4 py-3 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-ink-500">Saldo devedor</span>
+                <span className="num-display">
+                  <span className="text-ink-500">{brl(c.balanceBefore)}</span>
+                  <span className="mx-1.5 text-ink-300">→</span>
+                  <span className="font-semibold text-brand-700">{brl(c.balanceAfter)}</span>
+                </span>
               </div>
-              <div className="mt-2 flex items-stretch gap-2">
-                <div className="flex-1 rounded-xl bg-ink-50 px-3 py-2.5 text-center">
-                  <div className="text-[11px] text-ink-400">antes</div>
-                  <div className="num-display text-base font-bold text-ink-800">{brl(c.balanceBefore)}</div>
-                </div>
-                <div className="flex flex-col items-center justify-center px-1">
-                  <span className="text-[10px] font-bold text-brand-600">{pct(c.ipca)}</span>
-                  <svg width="22" height="14" viewBox="0 0 22 14" fill="none" className="text-ink-300">
-                    <path d="M1 7h18m0 0-5-5m5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  <span className="text-[10px] font-medium text-ink-500">+{brl(deltaBalance)}</span>
-                </div>
-                <div className="flex-1 rounded-xl bg-brand-50 px-3 py-2.5 text-center ring-1 ring-brand-200">
-                  <div className="text-[11px] text-brand-700">depois</div>
-                  <div className="num-display text-base font-bold text-brand-800">{brl(c.balanceAfter)}</div>
-                </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-ink-500">Cada parcela ({c.installmentsAffected}x)</span>
+                <span className="num-display">
+                  <span className="text-ink-500">{brl(c.previousInstallment)}</span>
+                  <span className="mx-1.5 text-ink-300">→</span>
+                  <span className="font-semibold text-ink-900">{brl(c.newInstallment)}</span>
+                </span>
               </div>
-            </div>
-
-            <div className="mt-2 bg-ink-50 px-4 py-3 text-sm text-ink-600">
-              O saldo atualizado é dividido pelas <b>{c.installmentsAffected} parcelas restantes</b> —
-              cada parcela passa de{' '}
-              <span className="num-display font-semibold text-ink-700">{brl(c.previousInstallment)}</span> para{' '}
-              <span className="num-display font-bold text-ink-900">{brl(c.newInstallment)}</span>.
             </div>
           </Card>
         )
@@ -1371,126 +1382,47 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
 /** Gráfico (SVG) do saldo devedor caindo ao longo do contrato, com os reajustes marcados. */
 function SaldoDevedorChart({
   schedule,
-  financedValue,
 }: {
   schedule: ReturnType<typeof generateSchedule>
-  financedValue: number
 }) {
-  const rows = schedule.rows
-  if (rows.length === 0) return null
+  const blocks = summarizeByYear(schedule)
+  if (blocks.length === 0) return null
 
-  const series = rows.map((r) => r.balanceBefore)
-  const maxV = Math.max(financedValue, ...series)
-  const n = series.length
-
-  const W = 360
-  const H = 190
-  const padX = 12
-  const padTop = 26
-  const padBot = 36
-  const baseY = H - padBot
-  const xAt = (i: number) => padX + (i / (n - 1)) * (W - 2 * padX)
-  const yAt = (v: number) => padTop + (1 - v / maxV) * (H - padTop - padBot)
-
-  const pts = series.map((v, i) => ({ x: xAt(i), y: yAt(v) }))
-  const linePath = smoothPath(pts)
-  const areaPath = `${linePath} L${pts[n - 1].x.toFixed(1)},${baseY} L${pts[0].x.toFixed(1)},${baseY} Z`
-
-  const marks = schedule.corrections
-    .map((c) => {
-      const i = rows.findIndex((r) => r.number === c.fromInstallment)
-      return i >= 0 ? { i, c } : null
-    })
-    .filter((m): m is { i: number; c: (typeof schedule.corrections)[number] } => m != null)
-
-  const kFmt = (v: number) => `${Math.round(v / 1000)} mil`
+  // Uma barra por aniversário (saldo no início de cada ciclo de 12 meses) e a
+  // barra final "quitado". O saldo cai ano após ano mesmo com o reajuste anual.
+  const bars = blocks.map((b, i) => ({ label: `Ano ${i + 1}`, value: Math.max(0, b.balanceStart) }))
+  bars.push({ label: 'Fim', value: Math.max(0, blocks[blocks.length - 1].balanceEnd) })
+  const max = Math.max(...bars.map((b) => b.value), 1)
+  const kFmt = (v: number) => (v <= 0 ? 'quitado' : v < 1000 ? brl(v) : `${Math.round(v / 1000)} mil`)
 
   return (
     <Card>
       <h3 className="font-display text-base font-bold text-ink-900">
-        Seu saldo devedor ao longo do tempo
+        Saldo a cada aniversário do contrato
       </h3>
       <p className="mt-1 text-sm text-ink-500">
-        Cai a cada parcela paga. Nos pontos, a cada 12 meses, é atualizado pela inflação (IPCA) — sem juros.
+        Onde o saldo fica depois de cada reajuste anual do IPCA. Cai ano após ano até quitar.
       </p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full" style={{ height: 205 }}>
-        <defs>
-          <linearGradient id="saldoArea" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.22" />
-            <stop offset="55%" stopColor="#6366f1" stopOpacity="0.06" />
-            <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="saldoLine" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#6366f1" />
-            <stop offset="100%" stopColor="#5b5bd6" />
-          </linearGradient>
-          <filter id="lineGlow" x="-10%" y="-20%" width="120%" height="160%">
-            <feDropShadow dx="0" dy="2.5" stdDeviation="2.4" floodColor="#5b5bd6" floodOpacity="0.28" />
-          </filter>
-        </defs>
-
-        {/* base */}
-        <line x1={padX} y1={baseY} x2={W - padX} y2={baseY} stroke="#eceef4" strokeWidth="1" />
-        <path d={areaPath} fill="url(#saldoArea)" />
-        <path
-          d={linePath}
-          fill="none"
-          stroke="url(#saldoLine)"
-          strokeWidth="2.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          filter="url(#lineGlow)"
-        />
-
-        {marks.map(({ i, c }) => {
-          const x = xAt(i)
-          const y = yAt(series[i])
+      <div className="mt-6 flex items-end gap-1.5 sm:gap-3" style={{ height: 188 }}>
+        {bars.map((b, i) => {
+          const isLast = i === bars.length - 1
+          const h = b.value <= 0 ? 3 : Math.max(4, Math.round((b.value / max) * 150))
           return (
-            <g key={c.index}>
-              <line x1={x} y1={y} x2={x} y2={baseY} stroke="#d7dae8" strokeWidth="1" strokeDasharray="1 3" />
-              <circle cx={x} cy={y} r="7" fill="#6366f1" opacity="0.12" />
-              <circle cx={x} cy={y} r="3.8" fill="url(#saldoLine)" stroke="#fff" strokeWidth="2" />
-              {/* pílula com o IPCA estimado */}
-              <g transform={`translate(${x}, ${y - 18})`}>
-                <rect x="-14" y="-8.5" width="28" height="16" rx="8" fill="#fff" stroke="#dcdcf6" strokeWidth="1" />
-                <text x="0" y="3" textAnchor="middle" className="fill-brand-700" style={{ fontSize: 8.5, fontWeight: 700 }}>
-                  ~{pct(c.ipca)}
-                </text>
-              </g>
-              <text x={x} y={baseY + 14} textAnchor="middle" className="fill-ink-600" style={{ fontSize: 8.5, fontWeight: 600 }}>
-                {formatMonthBR(c.date)}
-              </text>
-              <text x={x} y={baseY + 24} textAnchor="middle" className="fill-ink-400" style={{ fontSize: 8 }}>
-                {kFmt(c.balanceBefore)}
-              </text>
-            </g>
+            <div key={i} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end">
+              <div className="num-display mb-1.5 whitespace-nowrap text-[9.5px] font-semibold text-ink-600 sm:text-[11px]">
+                {kFmt(b.value)}
+              </div>
+              <div
+                className={`w-full rounded-t-md ${isLast ? 'bg-pos-500' : i === 0 ? 'bg-brand-400' : 'bg-brand-gradient'}`}
+                style={{ height: h }}
+              />
+              <div className="mt-2 text-[9.5px] font-medium text-ink-400 sm:text-[11px]">{b.label}</div>
+            </div>
           )
         })}
-      </svg>
-      <div className="mt-1 flex items-center justify-between text-xs text-ink-400">
-        <span>início <b className="num-display font-semibold text-ink-600">{brl(financedValue)}</b></span>
-        <span>fim do contrato</span>
       </div>
     </Card>
   )
-}
-
-/** Caminho suavizado (Catmull-Rom → Bézier) para um conjunto de pontos. */
-function smoothPath(pts: { x: number; y: number }[]): string {
-  if (pts.length < 2) return ''
-  let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1] ?? pts[i]
-    const p1 = pts[i]
-    const p2 = pts[i + 1]
-    const p3 = pts[i + 2] ?? p2
-    const c1x = p1.x + (p2.x - p0.x) / 6
-    const c1y = p1.y + (p2.y - p0.y) / 6
-    const c2x = p2.x - (p3.x - p1.x) / 6
-    const c2y = p2.y - (p3.y - p1.y) / 6
-    d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`
-  }
-  return d
 }
 
 // ---------------------------------------------------------------------------

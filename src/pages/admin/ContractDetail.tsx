@@ -10,7 +10,7 @@ import {
   updateContract,
 } from '@/lib/repo'
 import { useDb } from '@/lib/store'
-import { brl, parseMoney, pct } from '@/lib/format'
+import { brl, pct } from '@/lib/format'
 import { formatDateBR, formatMonthBR, todayISO } from '@/lib/dates'
 import { summarizeByYear, type ScheduleRow } from '@/lib/finance'
 import {
@@ -133,7 +133,9 @@ export function ContractDetail() {
         {tab === 'cronograma' && (
           <CronogramaTab calc={calc} onPay={(row) => setPayModal({ row })} />
         )}
-        {tab === 'pagamentos' && <PagamentosTab calc={calc} />}
+        {tab === 'pagamentos' && (
+          <PagamentosTab calc={calc} onEdit={(row) => setPayModal({ row })} />
+        )}
         {tab === 'ipca' && <IpcaTab calc={calc} onApply={() => setIpcaModal(true)} />}
         {tab === 'pix' && <PixTab calc={calc} onEdit={() => setPixModal(true)} />}
         {tab === 'historico' && <HistoricoTab calc={calc} />}
@@ -324,11 +326,9 @@ function CronogramaTab({
                   </Badge>
                 </td>
                 <td className="px-4 py-2.5 text-right">
-                  {r.status !== 'paga' && (
-                    <Button size="sm" variant="ghost" onClick={() => onPay(r)}>
-                      Registrar
-                    </Button>
-                  )}
+                  <Button size="sm" variant="ghost" onClick={() => onPay(r)}>
+                    {r.status === 'paga' ? 'Editar' : 'Registrar'}
+                  </Button>
                 </td>
               </tr>
             ))}
@@ -342,8 +342,19 @@ function CronogramaTab({
 // ---------------------------------------------------------------------------
 // Aba: Pagamentos
 // ---------------------------------------------------------------------------
-function PagamentosTab({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
+function PagamentosTab({
+  calc,
+  onEdit,
+}: {
+  calc: NonNullable<ReturnType<typeof getContractCalc>>
+  onEdit: (row: ScheduleRow) => void
+}) {
   const paid = calc.payments
+  // Localiza a linha do cronograma correspondente a um pagamento (para editar).
+  const rowFor = (p: (typeof paid)[number]) =>
+    p.installmentType === 'entrada'
+      ? calc.downRows.find((r) => r.number === p.installmentNumber)
+      : calc.schedule.rows.find((r) => r.number === p.installmentNumber)
   return (
     <Card className="p-0">
       <div className="overflow-x-auto">
@@ -356,6 +367,7 @@ function PagamentosTab({ calc }: { calc: NonNullable<ReturnType<typeof getContra
               <th className="px-4 py-3 text-right">Amortização</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Comprovante</th>
+              <th className="px-4 py-3 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-100">
@@ -390,11 +402,21 @@ function PagamentosTab({ calc }: { calc: NonNullable<ReturnType<typeof getContra
                     <span className="text-ink-400">—</span>
                   )}
                 </td>
+                <td className="px-4 py-2.5 text-right">
+                  {(() => {
+                    const row = rowFor(p)
+                    return row ? (
+                      <Button size="sm" variant="ghost" onClick={() => onEdit(row)}>
+                        Editar
+                      </Button>
+                    ) : null
+                  })()}
+                </td>
               </tr>
             ))}
             {paid.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-10 text-center text-ink-400">
+                <td colSpan={7} className="py-10 text-center text-ink-400">
                   Nenhum pagamento registrado.
                 </td>
               </tr>
@@ -591,11 +613,18 @@ function PaymentModal({
   row: ScheduleRow
   onClose: () => void
 }) {
-  const [amount, setAmount] = useState(String(row.value))
-  const [amort, setAmort] = useState('0')
-  const [date, setDate] = useState(todayISO())
+  // Pré-preenche com o lançamento já existente (permite editar), senão usa o
+  // valor da parcela do cronograma.
+  const existing = calc.payments.find(
+    (p) => p.installmentType === row.type && p.installmentNumber === row.number,
+  )
+  const [amount, setAmount] = useState(existing?.amount ?? row.value)
+  const [amort, setAmort] = useState(existing?.amortizationAmount ?? 0)
+  const [date, setDate] = useState(existing?.paymentDate ?? todayISO())
   const isFin = row.type === 'financiamento'
-  const total = parseMoney(amount) + (isFin ? parseMoney(amort) : 0)
+  // Amortização extra no máximo zera o saldo que sobra após esta parcela.
+  const maxAmort = Math.max(0, row.balanceAfter)
+  const total = amount + (isFin ? amort : 0)
 
   function save() {
     recordPayment({
@@ -603,28 +632,32 @@ function PaymentModal({
       installmentType: row.type,
       installmentNumber: row.number,
       paymentDate: date,
-      amount: parseMoney(amount),
-      amortizationAmount: isFin ? parseMoney(amort) : 0,
+      amount,
+      amortizationAmount: isFin ? Math.min(amort, maxAmort) : 0,
       status: 'pago',
     })
     onClose()
   }
 
   return (
-    <Modal open onClose={onClose} title={`Registrar pagamento — parcela #${row.number}`}>
+    <Modal
+      open
+      onClose={onClose}
+      title={`${existing ? 'Editar' : 'Registrar'} pagamento — parcela #${row.number}`}
+    >
       <div className="space-y-4">
         <Field label="Data do pagamento">
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
         <Field label="Valor pago (parcela)">
-          <MoneyInput value={parseMoney(amount)} onValueChange={(n) => setAmount(String(n))} />
+          <MoneyInput value={amount} onValueChange={setAmount} />
         </Field>
         {isFin && (
           <Field
             label="Valor extra para amortizar o saldo"
-            hint="Opcional — reduz o saldo devedor e recalcula as próximas parcelas."
+            hint={`Opcional — reduz o saldo devedor. Máximo ${brl(maxAmort)} (zera o saldo).`}
           >
-            <MoneyInput value={parseMoney(amort)} onValueChange={(n) => setAmort(String(n))} />
+            <MoneyInput value={amort} onValueChange={(n) => setAmort(Math.min(n, maxAmort))} />
           </Field>
         )}
         <div className="rounded-lg bg-ink-50 px-4 py-3">
@@ -634,7 +667,7 @@ function PaymentModal({
           <Button variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button onClick={save}>Confirmar pagamento</Button>
+          <Button onClick={save}>{existing ? 'Salvar alterações' : 'Confirmar pagamento'}</Button>
         </div>
       </div>
     </Modal>
