@@ -34,12 +34,13 @@ import { Logo } from '@/components/Logo'
 
 type ClientTab = 'inicio' | 'parcelas' | 'pagamentos' | 'simular' | 'previsao' | 'contrato'
 
-const CLIENT_TABS: { id: ClientTab; label: string }[] = [
-  { id: 'inicio', label: 'Início' },
-  { id: 'parcelas', label: 'Minhas parcelas' },
-  { id: 'simular', label: 'Antecipar pagamentos' },
-  { id: 'previsao', label: 'Previsão' },
-  { id: 'contrato', label: 'Meu contrato' },
+const CLIENT_TABS: { id: ClientTab; label: string; short: string; icon: string }[] = [
+  // icon = path(s) de um ícone 24×24 (stroke).
+  { id: 'inicio', label: 'Início', short: 'Início', icon: 'M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z' },
+  { id: 'parcelas', label: 'Minhas parcelas', short: 'Parcelas', icon: 'M3 5h18M3 5v14a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V5M8 3v4M16 3v4M7 11h4M7 15h4' },
+  { id: 'simular', label: 'Antecipar pagamentos', short: 'Antecipar', icon: 'M3 7l6 6 4-4 8 8M21 17v-4M21 17h-4' },
+  { id: 'previsao', label: 'Previsão', short: 'Previsão', icon: 'M3 3v18h18M7 14l4-4 3 3 5-6' },
+  { id: 'contrato', label: 'Meu contrato', short: 'Contrato', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6' },
 ]
 
 export function ClientArea() {
@@ -177,8 +178,8 @@ export function ClientArea() {
             )}
           </div>
         </div>
-        {/* Abas roláveis — seta indica que há mais abas à direita */}
-        <div className="relative">
+        {/* Abas no topo — desktop. No mobile/PWA o menu fica no rodapé. */}
+        <div className="relative hidden lg:block">
           <div
             ref={navRef}
             className="mx-auto flex max-w-5xl gap-1.5 overflow-x-auto px-3 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -228,7 +229,7 @@ export function ClientArea() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <main className="mx-auto max-w-5xl px-4 pt-6 pb-28 lg:pb-8">
         {tab === 'inicio' && (
           <InicioDashboard
             calc={calc}
@@ -265,6 +266,43 @@ export function ClientArea() {
           e eventuais ajustes no contrato.
         </p>
       </main>
+
+      {/* Menu inferior — mobile/PWA (cara de app nativo, alcance do polegar).
+          Respeita a safe-area do iOS; some no desktop (menu fica no topo). */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white/95 backdrop-blur-lg lg:hidden"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        aria-label="Navegação"
+      >
+        <div className="mx-auto grid max-w-md grid-cols-5">
+          {CLIENT_TABS.map((t) => {
+            const active = tab === t.id
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                aria-current={active ? 'page' : undefined}
+                className={`flex flex-col items-center justify-center gap-1 px-1 pb-1.5 pt-2 text-[10px] font-semibold transition-colors ${
+                  active ? 'text-brand-600' : 'text-ink-400'
+                }`}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-[22px] w-[22px]"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={active ? 2.4 : 2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d={t.icon} />
+                </svg>
+                <span className="leading-none">{t.short}</span>
+              </button>
+            )
+          })}
+        </div>
+      </nav>
     </div>
   )
 }
