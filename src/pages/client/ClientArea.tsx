@@ -6,6 +6,7 @@ import {
   getDb,
   logout,
   submitReceipt,
+  deletePayment,
 } from '@/lib/repo'
 import { useCurrentUser, useDb } from '@/lib/store'
 import { brl, num, parseMoney, pct } from '@/lib/format'
@@ -653,21 +654,14 @@ function PixBlock({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-ink-900">{pix!.receiverName}</div>
-                  <div className="truncate text-xs text-ink-500">
-                    {pix!.bankName ? `${pix!.bankName} · ` : ''}titular do contrato
-                  </div>
+                  {pix!.bankName && <div className="truncate text-xs text-ink-500">{pix!.bankName}</div>}
                 </div>
                 <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-pos-600" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg>
               </div>
             )}
           </div>
 
-          {hasRealPix ? (
-            <div className="mt-3 flex items-start gap-2 rounded-xl bg-ink-50 px-3 py-2.5 text-sm text-ink-600">
-              <svg viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
-              <span>Confira o valor de <b className="text-ink-800">{brl(state.currentInstallmentValue)}</b> antes de confirmar no app do seu banco.</span>
-            </div>
-          ) : (
+          {!hasRealPix && (
             <p className="mt-2 text-xs text-ink-400">O vendedor ainda vai cadastrar a chave Pix.</p>
           )}
 
@@ -740,9 +734,17 @@ function PixBlock({
                 </li>
               </ol>
 
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <Button variant="secondary" onClick={() => openReceipt(receiptUrl)}>Ver arquivo</Button>
-                <Button variant="secondary" onClick={() => fileRef.current?.click()}>Trocar</Button>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <Button variant="secondary" size="sm" onClick={() => openReceipt(receiptUrl)}>Ver</Button>
+                <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>Trocar</Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => submittedReceipt && deletePayment(submittedReceipt.id)}
+                  className="text-neg-700 hover:bg-neg-50"
+                >
+                  Excluir
+                </Button>
               </div>
             </div>
           ) : (

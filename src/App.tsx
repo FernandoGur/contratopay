@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useCurrentUser, useReady } from '@/lib/store'
 import { LogoMark } from '@/components/Logo'
+import { ReceiptModal } from '@/components/ReceiptModal'
 import { AdminLayout } from '@/components/AdminLayout'
 import { Login } from '@/pages/Login'
 import { Dashboard } from '@/pages/admin/Dashboard'
@@ -50,6 +51,7 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <ReceiptModal />
     </BrowserRouter>
   )
 }
