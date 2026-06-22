@@ -24,7 +24,7 @@ export function Wordmark({
 }) {
   const sizes = { sm: 'text-[15px]', md: 'text-[17px]', lg: 'text-[22px]' }
   return (
-    <span className={`block font-display font-bold tracking-[-0.03em] ${sizes[size]} ${className}`}>
+    <span className={`block text-left font-display font-bold tracking-[-0.03em] ${sizes[size]} ${className}`}>
       <span className="text-brand-950">Contrato</span>
       <span className="text-brand-600">Pay</span>
     </span>
@@ -45,14 +45,14 @@ export function Logo({
   size?: 'sm' | 'md' | 'lg'
 }) {
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-2.5 text-left">
       <LogoMark className={markClassName} />
-      <div className="leading-tight">
+      <div className="leading-tight text-left">
         <Wordmark size={size} />
         {tagline && (
-          <div className="text-[10px] font-medium text-ink-400">Gestão Inteligente de Contratos</div>
+          <div className="text-left text-[10px] font-medium text-ink-400">Gestão Inteligente de Contratos</div>
         )}
-        {subtitle && <div className="text-[11px] text-ink-400">{subtitle}</div>}
+        {subtitle && <div className="text-left text-[11px] text-ink-400">{subtitle}</div>}
       </div>
     </div>
   )
