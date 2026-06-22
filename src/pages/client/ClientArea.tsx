@@ -326,16 +326,15 @@ function InicioDashboard({
           )}
         </div>
 
-        {/* Coluna lateral: próximas parcelas + histórico + contrato */}
-        <div className="space-y-5">
-          <Card className="p-0">
-            <div className="flex items-center justify-between border-b border-ink-100 px-5 py-3.5">
-              <h3 className="font-display text-base font-semibold text-ink-900">Próximas parcelas</h3>
-              <button onClick={onVerParcelas} className="text-sm font-semibold text-brand-600 hover:underline">
-                Ver todas
-              </button>
-            </div>
-            <div className="divide-y divide-ink-100">
+        {/* Coluna lateral: próximas parcelas + histórico numa única caixa */}
+        <Card className="flex flex-col p-0">
+          <div className="flex items-center justify-between border-b border-ink-100 px-5 py-3.5">
+            <h3 className="font-display text-base font-semibold text-ink-900">Próximas parcelas</h3>
+            <button onClick={onVerParcelas} className="text-sm font-semibold text-brand-600 hover:underline">
+              Ver todas
+            </button>
+          </div>
+          <div className="divide-y divide-ink-100">
               {upcoming.map((r, i) => {
                 const [, mm, dd] = r.dueDate.split('-')
                 const mes = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'][Number(mm) - 1]
@@ -388,12 +387,11 @@ function InicioDashboard({
                   </div>
                 )
               })}
-            </div>
-          </Card>
+          </div>
 
           {recentPayments.length > 0 && (
-            <Card className="p-0">
-              <div className="flex items-center justify-between border-b border-ink-100 px-5 py-3.5">
+            <>
+              <div className="flex items-center justify-between border-t border-ink-100 px-5 py-3.5">
                 <h3 className="font-display text-base font-semibold text-ink-900">Histórico recente</h3>
                 <button onClick={onVerParcelas} className="text-sm font-semibold text-brand-600 hover:underline">
                   Ver todas
@@ -415,9 +413,9 @@ function InicioDashboard({
                   </div>
                 ))}
               </div>
-            </Card>
+            </>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   )
