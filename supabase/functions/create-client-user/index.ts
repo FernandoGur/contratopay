@@ -61,6 +61,26 @@ Deno.serve(async (req) => {
 
   const adminApi = createClient(url, service)
 
+  // Só provisiona acesso para um e-mail que é CLIENTE cadastrado — evita criar
+  // login órfão (sem dados) e provisionar e-mail arbitrário.
+  const { data: clientRow } = await adminApi
+    .from('clients')
+    .select('id')
+    .ilike('email', email)
+    .maybeSingle()
+  if (!clientRow) {
+    return json(400, { error: 'E-mail não corresponde a nenhum cliente cadastrado.' })
+  }
+  // Nunca redefine a senha de uma conta de ADMIN por esta via (anti-sequestro).
+  const { data: targetAdmin } = await adminApi
+    .from('app_admins')
+    .select('email')
+    .ilike('email', email)
+    .maybeSingle()
+  if (targetAdmin) {
+    return json(403, { error: 'Este e-mail é de um administrador e não pode ser provisionado aqui.' })
+  }
+
   // Se já existe um usuário com este e-mail, apenas redefine a senha.
   const { data: list } = await adminApi.auth.admin.listUsers()
   const existing = list?.users?.find((u) => (u.email ?? '').toLowerCase() === email)

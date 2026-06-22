@@ -160,10 +160,28 @@ create policy contracts_read on contracts for select using (
 drop policy if exists payments_admin on payments;
 drop policy if exists payments_read on payments;
 drop policy if exists payments_client_insert on payments;
+drop policy if exists payments_client_update on payments;
+drop policy if exists payments_client_delete on payments;
 create policy payments_admin on payments for all using (is_admin()) with check (is_admin());
 create policy payments_read on payments for select using (owns_contract(contract_id));
+-- Cliente só INSERE comprovante/pedido PENDENTE e SEM valor (inerte no cálculo);
+-- impede inserir amount/amortização arbitrários mesmo com status pendente.
 create policy payments_client_insert on payments for insert
-  with check (owns_contract(contract_id) and status = 'comprovante_enviado');
+  with check (
+    owns_contract(contract_id) and status = 'comprovante_enviado'
+    and coalesce(amount, 0) = 0 and coalesce(amortization_amount, 0) = 0
+  );
+-- Cliente ATUALIZA (troca) o próprio comprovante PENDENTE — continua pendente e
+-- sem valor; nunca pode marcar como pago nem mexer em pagamento já validado.
+create policy payments_client_update on payments for update
+  using (owns_contract(contract_id) and status = 'comprovante_enviado')
+  with check (
+    owns_contract(contract_id) and status = 'comprovante_enviado'
+    and coalesce(amount, 0) = 0 and coalesce(amortization_amount, 0) = 0
+  );
+-- Cliente EXCLUI o próprio comprovante/pedido PENDENTE (jamais um pago).
+create policy payments_client_delete on payments for delete
+  using (owns_contract(contract_id) and status = 'comprovante_enviado');
 
 drop policy if exists ipca_admin on ipca_corrections;
 drop policy if exists ipca_read on ipca_corrections;

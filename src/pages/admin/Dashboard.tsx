@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { getContractCalc, getDb } from '@/lib/repo'
 import { useDb } from '@/lib/store'
@@ -6,10 +7,17 @@ import { formatDateBR } from '@/lib/dates'
 import { Badge, Card, PageHeader, StatCard } from '@/components/ui'
 
 export function Dashboard() {
-  useDb()
+  const version = useDb()
   const db = getDb()
 
-  const calcs = db.contracts.map((c) => getContractCalc(c.id)!).filter(Boolean)
+  // Roda o motor UMA vez por contrato e só quando os dados mudam (version),
+  // reusando o resultado na lista (antes recalculava 2× por contrato a cada tick).
+  const calcs = useMemo(
+    () => db.contracts.map((c) => getContractCalc(c.id)!).filter(Boolean),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [version],
+  )
+  const calcById = useMemo(() => new Map(calcs.map((c) => [c.contract.id, c])), [calcs])
 
   const totalSold = db.contracts.reduce((s, c) => s + c.totalValue, 0)
   const totalReceived = calcs.reduce((s, c) => s + c.state.totalPaid, 0)
@@ -63,7 +71,8 @@ export function Dashboard() {
           <h2 className="mb-3 text-base font-semibold text-ink-900">Contratos</h2>
           <div className="space-y-2">
             {db.contracts.map((c) => {
-              const calc = getContractCalc(c.id)!
+              const calc = calcById.get(c.id)
+              if (!calc) return null
               return (
                 <Link
                   key={c.id}
