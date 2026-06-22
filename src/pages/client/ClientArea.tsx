@@ -69,6 +69,12 @@ export function ClientArea() {
   }, [])
   const scrollNav = (dir: number) => navRef.current?.scrollBy({ left: dir * 160, behavior: 'smooth' })
 
+  // Ao trocar de aba, volta ao topo (evita abrir a aba já rolada, escondendo
+  // o conteúdo do topo — ex.: os botões amortizar/quitar).
+  useEffect(() => {
+    window.scrollTo({ top: 0 })
+  }, [tab])
+
   if (!calc) {
     return (
       <div className="flex min-h-screen items-center justify-center text-ink-500">
@@ -363,13 +369,13 @@ function InicioDashboard({
       </div>
 
       {/* Conteúdo principal em duas colunas */}
-      <div className="grid gap-5 lg:grid-cols-3 lg:items-stretch">
+      <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
         {/* Coluna principal: pagamento + simulador */}
         <div className="flex flex-col gap-5 lg:col-span-2">
           <PixBlock calc={calc} pix={pix} />
 
           {state.nextInstallmentNumber && (
-            <Card className="card-hover flex flex-col justify-center border-brand-200 bg-brand-50/40 lg:flex-1">
+            <Card className="card-hover border-brand-200 bg-brand-50/40">
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-600">
                   <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -818,10 +824,6 @@ function PixBlock({
                   Selecionar arquivo
                 </button>
               </div>
-              <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-400">
-                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
-                O vendedor confirma o recebimento em até 1 dia útil.
-              </p>
             </>
           )}
         </div>
@@ -1334,19 +1336,6 @@ function ParcelasTab({
     // Mais recente primeiro; mesma data → número maior primeiro (sequência limpa).
     .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate) || extratoOrder(b) - extratoOrder(a))
 
-  // Ao abrir a aba (inclusive via "Ver todas"), rola até a última parcela paga.
-  const paidRows = rows.filter((r) => r.status === 'paga')
-  const lastPaid = paidRows[paidRows.length - 1]
-  const lastPaidKey = lastPaid ? `${lastPaid.type}-${lastPaid.number}` : null
-  const lastPaidRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const t = setTimeout(
-      () => lastPaidRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
-      80,
-    )
-    return () => clearTimeout(t)
-  }, [])
-
   const visible = rows.filter((r) =>
     filter === 'todas'
       ? true
@@ -1454,10 +1443,7 @@ function ParcelasTab({
                     </span>
                   </div>
                 )}
-                <div
-                  ref={`${r.type}-${r.number}` === lastPaidKey ? lastPaidRef : undefined}
-                  className={`px-4 py-3 ${isLast ? 'bg-pos-50' : ''}`}
-                >
+                <div className={`px-4 py-3 ${isLast ? 'bg-pos-50' : ''}`}>
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-1.5 text-sm font-semibold text-ink-800">
