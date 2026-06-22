@@ -758,14 +758,15 @@ function ReviewReceiptModal({
   onClose: () => void
 }) {
   const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
-  const isFin = payment.installmentType === 'financiamento'
+  // Pedido do cliente (amortizar / quitar) anexado ao comprovante: pré-seleciona
+  // o modo e o valor; o vendedor ainda pode ajustar antes de confirmar. O pedido
+  // chega como 'amortizacao' (carrier), mas aponta para um ponto do financiamento.
+  const intent = parseReceiptNotes(payment.notes).intent
+  const isCarrier = !!intent
+  const isFin = payment.installmentType === 'financiamento' || isCarrier
   const sourceRows = isFin ? calc.schedule.rows : calc.downRows
   const openFin = calc.schedule.rows.filter((r) => r.status !== 'paga')
   const submittedRow = sourceRows.find((r) => r.number === payment.installmentNumber)
-
-  // Pedido do cliente (amortizar / quitar) anexado ao comprovante: pré-seleciona
-  // o modo e o valor; o vendedor ainda pode ajustar antes de confirmar.
-  const intent = parseReceiptNotes(payment.notes).intent
 
   const [date, setDate] = useState(payment.paymentDate || todayISO())
   const [amount, setAmount] = useState(
@@ -870,6 +871,9 @@ function ReviewReceiptModal({
       // lançamento original (foi realocado para a antecipação).
       if (!inLastK) deletePayment(payment.id)
     }
+    // O pedido (carrier 'amortizacao') é só um placeholder: após registrar a
+    // ação real, remove-o para não ficar pendente (idempotente).
+    if (isCarrier) deletePayment(payment.id)
     onClose()
   }
 

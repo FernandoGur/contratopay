@@ -15,7 +15,7 @@ import {
   type ScheduleRow,
 } from './finance'
 import { todayISO } from './dates'
-import { encodeReceiptNotes, type ExtraIntent } from './requests'
+import { encodeReceiptNotes, parseReceiptNotes, type ExtraIntent } from './requests'
 import { makeSeed } from './seed'
 import { supabase, useSupabase } from './supabase'
 import { hydrate, upsertRow, deleteRow } from './supabaseSync'
@@ -637,7 +637,7 @@ export function deletePayment(paymentId: string) {
  *  notes para exibir nome/data do arquivo. */
 export function submitReceipt(
   contractId: string,
-  installmentType: 'entrada' | 'financiamento',
+  installmentType: 'entrada' | 'financiamento' | 'amortizacao',
   installmentNumber: number,
   receiptUrl: string,
   fileName = '',
@@ -646,12 +646,19 @@ export function submitReceipt(
   // `intent` (amortizar/quitar) é serializado junto do nome do arquivo. O
   // registro fica inerte (amount/amortization 0, status comprovante_enviado):
   // não mexe no cálculo até o vendedor validar no modal de revisão.
+  // Pedidos extras chegam com installmentType 'amortizacao' (namespace próprio),
+  // para NÃO colidir com o comprovante comum da parcela ('financiamento').
   const notes = encodeReceiptNotes({ file: fileName, intent })
+  // Só reusa um registro PENDENTE do mesmo tipo/número (e, se houver intenção,
+  // da mesma modalidade). Nunca sobrescreve um pagamento já 'pago' nem mistura
+  // comprovante comum com pedido de amortizar/quitar.
   const existing = db.payments.find(
     (p) =>
       p.contractId === contractId &&
       p.installmentType === installmentType &&
-      p.installmentNumber === installmentNumber,
+      p.installmentNumber === installmentNumber &&
+      p.status !== 'pago' &&
+      (!intent || parseReceiptNotes(p.notes).intent?.mode === intent.mode),
   )
   let row: Payment
   if (existing) {

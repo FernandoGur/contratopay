@@ -262,6 +262,10 @@ function InicioDashboard({
     Math.round((state.totalPaid / Math.max(1, contract.totalValue)) * 100),
   )
   const entradaDone = downRows.length > 0 && paidDown === downRows.length
+  // "Em aberto" da composição = quanto falta do valor do contrato (inclui as
+  // parcelas da ENTRADA ainda abertas). Fecha com "Pago" (Pago + Em aberto =
+  // total); usar só o saldo do financiamento deixava a barra sem fechar.
+  const emAbertoTotal = Math.max(0, contract.totalValue - state.totalPaid)
   const upcoming = finRows.filter((r) => r.status !== 'paga').slice(0, 3)
   // Ordem global da parcela (entrada 1–12, depois financiamento) para desempate.
   const payOrder = (p: (typeof calc.payments)[number]) =>
@@ -363,7 +367,7 @@ function InicioDashboard({
             )}
             <span className="inline-flex items-center gap-1.5 text-ink-500">
               <span className="h-2 w-2 rounded-sm bg-brand-500" />
-              Em aberto <b className="font-semibold text-ink-800">{brl(state.currentBalance)}</b>
+              Em aberto <b className="font-semibold text-ink-800">{brl(emAbertoTotal)}</b>
             </span>
             <span className="basis-full text-ink-400 sm:ml-auto sm:basis-auto">
               {entradaDone ? 'Entrada concluída' : `Entrada ${paidDown}/${downRows.length}`} · Financ. {paidFin}/{finRows.length}
@@ -865,10 +869,11 @@ function RequestComprovante({
   const target = openFin[0]
   const label = mode === 'amortizar' ? 'amortização' : 'quitação antecipada'
 
-  // Pedido desta modalidade já enviado (aguardando validação).
+  // Pedido desta modalidade já enviado (aguardando validação). Pedidos extras
+  // ficam no namespace 'amortizacao' (não colidem com o comprovante comum).
   const pending = calc.payments.find(
     (p) =>
-      p.installmentType === 'financiamento' &&
+      p.installmentType === 'amortizacao' &&
       p.status === 'comprovante_enviado' &&
       !!p.receiptUrl &&
       parseReceiptNotes(p.notes).intent?.mode === mode,
@@ -885,7 +890,7 @@ function RequestComprovante({
     reader.onload = () =>
       submitReceipt(
         calc.contract.id,
-        'financiamento',
+        'amortizacao',
         target.number,
         String(reader.result),
         file.name,
