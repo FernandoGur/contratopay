@@ -34,12 +34,12 @@
   --color-ink-800: #25272e;
   --color-ink-900: #18191f;
 
-  /* Positivo (verde de valor) / atenção / negativo */
-  --color-pos-50: #e7f4ed;
-  --color-pos-100: #c7e9d6;
-  --color-pos-500: #16a34a;
-  --color-pos-600: #1a8f5c;
-  --color-pos-700: #136c46;
+  /* Positivo (teal — verde-azulado que conversa com o índigo) / atenção / negativo */
+  --color-pos-50: #e6f6f3;
+  --color-pos-100: #c2e9e1;
+  --color-pos-500: #14b8a6;
+  --color-pos-600: #0d9488;
+  --color-pos-700: #0f766e;
   --color-warn-50: #fbf1de;
   --color-warn-500: #d9920b;
   --color-warn-700: #b5780f;
