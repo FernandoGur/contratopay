@@ -580,6 +580,60 @@ export interface YearBlock {
   blockTotal: number
 }
 
+/**
+ * Saldo devedor REAL em aberto depois de uma parcela, ciente de antecipações.
+ *
+ * O cronograma pressupõe pagamento sequencial, então `balanceAfter` de cada
+ * linha conta TODAS as parcelas seguintes — inclusive as que o cliente já
+ * quitou antecipadamente (as últimas). Aqui contamos só as parcelas que ainda
+ * estão EM ABERTO depois desta. Pela identidade do modelo (saldo = nº de
+ * parcelas restantes × valor da parcela do período), o saldo em aberto é
+ * (parcelas abertas depois desta) × valor desta parcela.
+ */
+export function openBalanceAfter(rows: ScheduleRow[], row: ScheduleRow): number {
+  const openAfter = rows.filter(
+    (r) => r.type === row.type && r.number > row.number && r.status !== 'paga',
+  ).length
+  return round2(openAfter * row.value)
+}
+
+/** Há alguma parcela em aberto ANTES desta (do mesmo tipo)? Indica que esta foi
+ *  paga fora de ordem (antecipação das últimas), não no fluxo sequencial. */
+export function isAnticipated(rows: ScheduleRow[], row: ScheduleRow): boolean {
+  return (
+    row.status === 'paga' &&
+    rows.some((r) => r.type === row.type && r.number < row.number && r.status !== 'paga')
+  )
+}
+
+/** Correção (interface da CorrectionEvent) já ciente de antecipações: o nº de
+ *  parcelas afetadas e o saldo consideram só as parcelas EM ABERTO. Reajustes
+ *  que só afetariam parcelas já quitadas são removidos. */
+export interface ProjectedCorrection extends CorrectionEvent {
+  /** Parcelas em aberto afetadas (exclui antecipadas/quitadas). */
+  installmentsOpen: number
+  /** Saldo em aberto antes/depois do reajuste (ciente de antecipações). */
+  openBalanceBefore: number
+  openBalanceAfter: number
+}
+
+export function projectOpenCorrections(schedule: ScheduleResult): ProjectedCorrection[] {
+  const rows = schedule.rows
+  return schedule.corrections
+    .map((c) => {
+      const open = rows.filter(
+        (r) => r.type === 'financiamento' && r.number >= c.fromInstallment && r.status !== 'paga',
+      ).length
+      return {
+        ...c,
+        installmentsOpen: open,
+        openBalanceBefore: round2(open * c.previousInstallment),
+        openBalanceAfter: round2(open * c.newInstallment),
+      }
+    })
+    .filter((c) => c.installmentsOpen > 0)
+}
+
 export function summarizeByYear(schedule: ScheduleResult, freq = 12): YearBlock[] {
   const rows = schedule.rows
   const blocks: YearBlock[] = []

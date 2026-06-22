@@ -15,6 +15,9 @@ import { openReceipt } from '@/lib/receipt'
 import { parseReceiptNotes } from '@/lib/requests'
 import {
   generateSchedule,
+  isAnticipated,
+  openBalanceAfter,
+  projectOpenCorrections,
   simulateAnticipateLast,
   simulateExtraPayment,
   summarizeByYear,
@@ -1668,11 +1671,11 @@ function ParcelasTab({
                       </Badge>
                     </div>
                   </div>
-                  {r.type === 'financiamento' && !isLast && (
+                  {r.type === 'financiamento' && !isLast && r.status !== 'paga' && (
                     <div className="mt-1.5 flex items-center justify-between rounded-lg bg-ink-50 px-2.5 py-1">
-                      <span className="text-[11px] text-ink-400">Saldo devedor após esta parcela</span>
+                      <span className="text-[11px] text-ink-400">Saldo devedor em aberto após esta parcela</span>
                       <span className="num-display text-xs font-semibold text-ink-700">
-                        {brl(r.balanceAfter)}
+                        {brl(openBalanceAfter(rows, r))}
                       </span>
                     </div>
                   )}
@@ -1777,7 +1780,9 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
     () => generateSchedule(calc.contract, { ...calc.scheduleOpts, forecastAnnualIpca: forecast }),
     [calc, forecast],
   )
-  const corrections = simSchedule.corrections
+  // Projeção ciente de antecipações: ignora parcelas já quitadas (inclusive as
+  // últimas antecipadas) na contagem e no saldo de cada reajuste.
+  const corrections = projectOpenCorrections(simSchedule)
   const nextDate = (corrections.find((c) => !c.isOfficial) ?? corrections[0])?.date
   const presets = [0.04, 0.045, 0.05]
 
@@ -1865,13 +1870,13 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
               <div className="flex items-center justify-between gap-2">
                 <span className="text-ink-500">Saldo devedor</span>
                 <span className="num-display">
-                  <span className="text-ink-500">{brl(c.balanceBefore)}</span>
+                  <span className="text-ink-500">{brl(c.openBalanceBefore)}</span>
                   <span className="mx-1.5 text-ink-300">→</span>
-                  <span className="font-semibold text-brand-700">{brl(c.balanceAfter)}</span>
+                  <span className="font-semibold text-brand-700">{brl(c.openBalanceAfter)}</span>
                 </span>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-ink-500">Cada parcela ({c.installmentsAffected}x)</span>
+                <span className="text-ink-500">Cada parcela ({c.installmentsOpen}x)</span>
                 <span className="num-display">
                   <span className="text-ink-500">{brl(c.previousInstallment)}</span>
                   <span className="mx-1.5 text-ink-300">→</span>
@@ -1895,10 +1900,20 @@ function SaldoDevedorChart({
   const blocks = summarizeByYear(schedule)
   if (blocks.length === 0) return null
 
+  // Saldo ciente de antecipações: conta as parcelas a partir de cada aniversário
+  // que NÃO foram quitadas antecipadamente (fora de ordem). Para contratos sem
+  // antecipação, equivale ao saldo planejado (nº restante × valor do período).
+  const rows = schedule.rows
+  const openCountFrom = (n: number) =>
+    rows.filter((r) => r.type === 'financiamento' && r.number >= n && !isAnticipated(rows, r)).length
+
   // Uma barra por aniversário (saldo no início de cada ciclo de 12 meses) e a
   // barra final "quitado". O saldo cai ano após ano mesmo com o reajuste anual.
-  const bars = blocks.map((b, i) => ({ label: `Ano ${i + 1}`, value: Math.max(0, b.balanceStart) }))
-  bars.push({ label: 'Fim', value: Math.max(0, blocks[blocks.length - 1].balanceEnd) })
+  const bars = blocks.map((b, i) => ({
+    label: `Ano ${i + 1}`,
+    value: Math.max(0, openCountFrom(b.fromNumber) * b.installmentValue),
+  }))
+  bars.push({ label: 'Fim', value: 0 })
   const max = Math.max(...bars.map((b) => b.value), 1)
   const kFmt = (v: number) => (v <= 0 ? 'quitado' : v < 1000 ? brl(v) : `${Math.round(v / 1000)} mil`)
 
