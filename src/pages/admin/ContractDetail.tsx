@@ -708,6 +708,13 @@ function PaymentModal({
     onClose()
   }
 
+  function remove() {
+    if (!existing) return
+    if (!window.confirm('Excluir este lançamento? A parcela volta a ficar em aberto.')) return
+    deletePayment(existing.id)
+    onClose()
+  }
+
   return (
     <Modal
       open
@@ -732,11 +739,20 @@ function PaymentModal({
         <div className="rounded-lg bg-ink-50 px-4 py-3">
           <Row label="Total a registrar" value={brl(total)} strong />
         </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button onClick={save}>{existing ? 'Salvar alterações' : 'Confirmar pagamento'}</Button>
+        <div className="flex items-center justify-between gap-2">
+          {existing ? (
+            <Button variant="ghost" onClick={remove} className="text-neg-700 hover:bg-neg-50">
+              Excluir lançamento
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button onClick={save}>{existing ? 'Salvar alterações' : 'Confirmar pagamento'}</Button>
+          </div>
         </div>
       </div>
     </Modal>

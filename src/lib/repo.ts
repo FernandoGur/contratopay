@@ -551,7 +551,7 @@ export function recordPayment(data: {
       pushDelete('payments', existing.id)
       log(
         'pagamento_estornado',
-        `Lançamento sem valor removido: ${data.installmentType} #${data.installmentNumber}.`,
+        `Pagamento editado para R$ 0,00 e estornado: ${data.installmentType} #${data.installmentNumber} voltou a ficar em aberto.`,
         data.contractId,
       )
       persist()
@@ -576,6 +576,8 @@ export function recordPayment(data: {
     )
   }
 
+  // Já era um pagamento efetivo? Então isto é uma EDIÇÃO (e não um novo registro).
+  const wasPaid = existing?.status === 'pago' && (existing.amount > 0 || existing.amortizationAmount > 0)
   const base: Payment = {
     id: existing?.id ?? uid('pay'),
     contractId: data.contractId,
@@ -606,7 +608,11 @@ export function recordPayment(data: {
       data.contractId,
     )
   }
-  log('pagamento_registrado', `Pagamento registrado: ${label}.`, data.contractId)
+  if (wasPaid) {
+    log('pagamento_editado', `Pagamento editado: ${label} → R$ ${amount.toFixed(2)}.`, data.contractId)
+  } else {
+    log('pagamento_registrado', `Pagamento registrado: ${label} (R$ ${amount.toFixed(2)}).`, data.contractId)
+  }
   persist()
   return base
 }
@@ -654,7 +660,14 @@ export function deletePayment(paymentId: string) {
   if (!p) return
   db.payments = db.payments.filter((x) => x.id !== paymentId)
   pushDelete('payments', paymentId)
-  log('pagamento_estornado', `Lançamento removido: ${p.installmentType} #${p.installmentNumber}.`, p.contractId)
+  const label = `${p.installmentType} #${p.installmentNumber}`
+  const msg =
+    p.installmentType === 'amortizacao' || (p.amount <= 0 && p.amortizationAmount > 0)
+      ? `Amortização removida: ${label}.`
+      : p.status === 'comprovante_enviado'
+        ? `Comprovante/pedido excluído: ${label}.`
+        : `Pagamento estornado: ${label} voltou a ficar em aberto.`
+  log('pagamento_estornado', msg, p.contractId)
   persist()
 }
 
