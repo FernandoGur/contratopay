@@ -17,7 +17,7 @@ import {
 import { todayISO } from './dates'
 import { makeSeed } from './seed'
 import { supabase, useSupabase } from './supabase'
-import { hydrate, upsertRow } from './supabaseSync'
+import { hydrate, upsertRow, deleteRow } from './supabaseSync'
 import type {
   Client,
   Contract,
@@ -67,6 +67,10 @@ function migrate(database: Database): Database {
       if (!k.bankName) k.bankName = 'Banco do Brasil'
     }
   }
+  // Remove lançamentos "pago" fantasmas (R$ 0,00 e sem amortização).
+  database.payments = (database.payments ?? []).filter(
+    (p) => p.status !== 'pago' || p.amount > 0 || p.amortizationAmount > 0,
+  )
   return database
 }
 
@@ -122,6 +126,12 @@ function push(ent: Entity, row: unknown) {
   upsertRow(ent, row as Record<string, unknown>).catch((e) =>
     console.error('[sync] upsert falhou', ent, e),
   )
+}
+
+/** Remoção espelhada no Supabase (fire-and-forget). */
+function pushDelete(ent: Entity, id: string) {
+  if (!useSupabase) return
+  deleteRow(ent, id).catch((e) => console.error('[sync] delete falhou', ent, e))
 }
 
 function log(action: string, description: string, contractId: string | null) {
@@ -486,6 +496,45 @@ export function recordPayment(data: {
       p.installmentType === data.installmentType &&
       p.installmentNumber === data.installmentNumber,
   )
+  const status = data.status ?? 'pago'
+  const amount = data.amount
+  const amort = data.amortizationAmount ?? 0
+
+  // Um pagamento "pago" sem valor (0 e sem amortização) NÃO é um pagamento:
+  // não cria registro fantasma. Se já existia um lançamento para esta parcela,
+  // ele é REMOVIDO (equivale a desfazer/estornar) — a parcela volta a "em aberto"
+  // e some do histórico. Resolve o caso de editar o valor pago para R$ 0,00.
+  if (status === 'pago' && amount <= 0 && amort <= 0) {
+    if (existing) {
+      db.payments = db.payments.filter((p) => p.id !== existing.id)
+      pushDelete('payments', existing.id)
+      log(
+        'pagamento_estornado',
+        `Lançamento sem valor removido: ${data.installmentType} #${data.installmentNumber}.`,
+        data.contractId,
+      )
+      persist()
+    }
+    return (
+      existing ?? {
+        id: uid('pay'),
+        contractId: data.contractId,
+        installmentType: data.installmentType,
+        installmentNumber: data.installmentNumber,
+        paymentDate: data.paymentDate,
+        amount: 0,
+        amortizationAmount: 0,
+        paymentType: 'pix',
+        pixKeyId: null,
+        receiptUrl: null,
+        status: 'em_aberto',
+        notes: '',
+        createdBy: getCurrentUser()?.id ?? 'user-admin',
+        createdAt: nowISO(),
+      }
+    )
+  }
+
   const base: Payment = {
     id: existing?.id ?? uid('pay'),
     contractId: data.contractId,

@@ -198,7 +198,9 @@ function InicioDashboard({
   const payOrder = (p: (typeof calc.payments)[number]) =>
     (p.installmentType === 'financiamento' ? 1000 : 0) + p.installmentNumber
   const recentPayments = [...calc.payments]
-    .filter((p) => p.status === 'pago')
+    // Só pagamentos reais (valor pago > 0 ou amortização > 0). Ignora
+    // lançamentos "pago" com R$ 0,00, que não são pagamentos de fato.
+    .filter((p) => p.status === 'pago' && (p.amount > 0 || p.amortizationAmount > 0))
     // Mais recente primeiro; no mesmo dia, a parcela mais recente vem antes.
     .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate) || payOrder(b) - payOrder(a))
     .slice(0, 3)

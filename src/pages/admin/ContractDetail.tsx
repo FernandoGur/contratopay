@@ -349,7 +349,11 @@ function PagamentosTab({
   calc: NonNullable<ReturnType<typeof getContractCalc>>
   onEdit: (row: ScheduleRow) => void
 }) {
-  const paid = calc.payments
+  // Esconde lançamentos "pago" sem valor (R$ 0,00 e sem amortização) — não são
+  // pagamentos de fato; mantém comprovantes enviados e demais status.
+  const paid = calc.payments.filter(
+    (p) => p.status !== 'pago' || p.amount > 0 || p.amortizationAmount > 0,
+  )
   // Localiza a linha do cronograma correspondente a um pagamento (para editar).
   const rowFor = (p: (typeof paid)[number]) =>
     p.installmentType === 'entrada'
