@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from 'react'
-import { getCurrentUser, getDb, isReady, subscribe } from './repo'
+import { getCurrentUser, getVersion, isReady, subscribe } from './repo'
 
-/** Re-renderiza quando o banco local muda. Retorna um "tick" de versão. */
+/** Re-renderiza quando o banco muda. Retorna um "tick" de versão que muda a
+ *  cada persist() — necessário porque o `db` é mutado no lugar (mesma ref). */
 export function useDb() {
-  return useSyncExternalStore(subscribe, getDb, getDb)
+  return useSyncExternalStore(subscribe, getVersion, getVersion)
 }
 
 export function useCurrentUser() {

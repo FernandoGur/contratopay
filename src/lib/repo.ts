@@ -52,7 +52,13 @@ function emptyDb(): Database {
 let db: Database = loadDb()
 let ready = !useSupabase // local já fica pronto; supabase fica após hidratar
 let currentUser: User | null = null
+let version = 0 // tick incrementado a cada mudança (reatividade do useDb)
 const listeners = new Set<() => void>()
+
+/** Snapshot reativo: muda a cada persist(), pois o `db` é mutado no lugar. */
+export function getVersion(): number {
+  return version
+}
 
 /**
  * Migrações leves no banco LOCAL já salvo no dispositivo, sem perder dados.
@@ -93,6 +99,7 @@ function loadDb(): Database {
 
 function persist() {
   localStorage.setItem(useSupabase ? SB_KEY : DB_KEY, JSON.stringify(db))
+  version++
   listeners.forEach((l) => l())
 }
 
