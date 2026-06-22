@@ -401,13 +401,27 @@ function PagamentosTab({
                   {p.installmentType === 'entrada' ? 'Entrada' : 'Fin.'} #{p.installmentNumber}
                 </td>
                 <td className="px-4 py-2.5 tnum text-ink-600">{formatDateBR(p.paymentDate)}</td>
-                <td className="px-4 py-2.5 text-right tnum text-ink-900">{brl(p.amount)}</td>
+                <td className="px-4 py-2.5 text-right tnum text-ink-900">
+                  {p.amount > 0 ? brl(p.amount) : '—'}
+                </td>
                 <td className="px-4 py-2.5 text-right tnum text-ink-600">
                   {p.amortizationAmount > 0 ? brl(p.amortizationAmount) : '—'}
                 </td>
                 <td className="px-4 py-2.5">
-                  <Badge tone={p.status === 'pago' ? 'pos' : p.status === 'comprovante_enviado' ? 'warn' : 'muted'}>
-                    {PAYMENT_STATUS_LABEL[p.status]}
+                  <Badge
+                    tone={
+                      p.amount <= 0 && p.amortizationAmount > 0
+                        ? 'info'
+                        : p.status === 'pago'
+                          ? 'pos'
+                          : p.status === 'comprovante_enviado'
+                            ? 'warn'
+                            : 'muted'
+                    }
+                  >
+                    {p.amount <= 0 && p.amortizationAmount > 0
+                      ? 'Amortização'
+                      : PAYMENT_STATUS_LABEL[p.status]}
                   </Badge>
                 </td>
                 <td className="px-4 py-2.5">
