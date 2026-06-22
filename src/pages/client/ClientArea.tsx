@@ -468,6 +468,29 @@ function formatDateLong(iso: string | null | undefined) {
   return `${Number(d)} de ${MESES_EXTENSO[Number(m) - 1]} de ${y}`
 }
 
+/** Mini-preview clicável do comprovante (imagem ou ícone de documento). */
+function ReceiptThumb({ url }: { url: string }) {
+  const isImg = /^data:image|\.(png|jpe?g|webp|gif)(\?|$)/i.test(url)
+  return (
+    <button
+      type="button"
+      onClick={() => openReceipt(url)}
+      aria-label="Ver comprovante"
+      title="Ver comprovante"
+      className="ml-2 inline-flex h-5 w-5 shrink-0 translate-y-[3px] items-center justify-center overflow-hidden rounded-[5px] border border-ink-200 bg-white align-top transition-shadow hover:ring-2 hover:ring-brand-200"
+    >
+      {isImg ? (
+        <img src={url} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <svg viewBox="0 0 24 24" className="h-3 w-3 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <path d="M14 2v6h6" />
+        </svg>
+      )}
+    </button>
+  )
+}
+
 function PixBlock({
   calc,
   pix,
@@ -1278,17 +1301,7 @@ function ParcelasTab({
                         {formatDateBR(r.dueDate)}
                         {r.amortization ? ' · com pagamento extra' : ''}
                         {receiptByKey[`${r.type}-${r.number}`] && (
-                          <button
-                            type="button"
-                            onClick={() => openReceipt(receiptByKey[`${r.type}-${r.number}`])}
-                            aria-label="Ver comprovante"
-                            title="Ver comprovante"
-                            className="ml-1.5 inline-flex translate-y-px text-brand-500 hover:text-brand-700"
-                          >
-                            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                            </svg>
-                          </button>
+                          <ReceiptThumb url={receiptByKey[`${r.type}-${r.number}`]} />
                         )}
                       </div>
                     </div>
@@ -1354,19 +1367,7 @@ function ParcelasTab({
                       {p.amortizationAmount > 0 && !isAmort
                         ? ` · amortização ${brl(p.amortizationAmount)}`
                         : ''}
-                      {p.receiptUrl && (
-                        <button
-                          type="button"
-                          onClick={() => openReceipt(p.receiptUrl)}
-                          aria-label="Ver comprovante"
-                          title="Ver comprovante"
-                          className="ml-1.5 inline-flex translate-y-px text-brand-500 hover:text-brand-700"
-                        >
-                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                          </svg>
-                        </button>
-                      )}
+                      {p.receiptUrl && <ReceiptThumb url={p.receiptUrl} />}
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
