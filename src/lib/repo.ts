@@ -629,12 +629,14 @@ export function deletePayment(paymentId: string) {
   persist()
 }
 
-/** Cliente envia comprovante (modo local: guarda data URL). */
+/** Cliente envia comprovante (modo local: guarda data URL). `fileName` fica em
+ *  notes para exibir nome/data do arquivo. */
 export function submitReceipt(
   contractId: string,
   installmentType: 'entrada' | 'financiamento',
   installmentNumber: number,
   receiptUrl: string,
+  fileName = '',
 ) {
   const existing = db.payments.find(
     (p) =>
@@ -646,6 +648,9 @@ export function submitReceipt(
   if (existing) {
     existing.receiptUrl = receiptUrl
     existing.status = 'comprovante_enviado'
+    existing.notes = fileName
+    existing.paymentDate = todayISO()
+    existing.createdAt = nowISO() // atualiza a hora do envio ao trocar
     row = existing
   } else {
     row = {
@@ -660,7 +665,7 @@ export function submitReceipt(
       pixKeyId: getActivePixKey(contractId)?.id ?? null,
       receiptUrl,
       status: 'comprovante_enviado',
-      notes: '',
+      notes: fileName,
       createdBy: getCurrentUser()?.id ?? 'user-cliente',
       createdAt: nowISO(),
     }

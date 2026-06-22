@@ -517,6 +517,19 @@ function dueRelative(iso: string | null | undefined): string {
   return `há ${-diff} dias`
 }
 
+/** ISO com hora → "hoje 14:32" / "23/06 14:32". */
+function formatSentTime(iso: string): string {
+  const d = new Date(iso)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  const t0 = new Date()
+  t0.setHours(0, 0, 0, 0)
+  const d0 = new Date(d)
+  d0.setHours(0, 0, 0, 0)
+  if (d0.getTime() === t0.getTime()) return `hoje ${hh}:${mm}`
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${hh}:${mm}`
+}
+
 function PixBlock({
   calc,
   pix,
@@ -556,10 +569,24 @@ function PixBlock({
     if (!file || !state.nextInstallmentNumber) return
     const reader = new FileReader()
     reader.onload = () => {
-      submitReceipt(contract.id, 'financiamento', state.nextInstallmentNumber!, String(reader.result))
+      submitReceipt(
+        contract.id,
+        'financiamento',
+        state.nextInstallmentNumber!,
+        String(reader.result),
+        file.name,
+      )
     }
     reader.readAsDataURL(file)
   }
+
+  // Metadados do comprovante enviado (nome, tamanho, hora).
+  const receiptName =
+    (submittedReceipt?.notes || '').trim() || (receiptIsImage ? 'comprovante.jpg' : 'comprovante.pdf')
+  const receiptKB = receiptUrl
+    ? Math.max(1, Math.round(((receiptUrl.split(',')[1]?.length ?? 0) * 0.75) / 1024))
+    : 0
+  const receiptSent = submittedReceipt ? formatSentTime(submittedReceipt.createdAt) : ''
 
   if (!state.nextInstallmentNumber) {
     return (
@@ -600,19 +627,17 @@ function PixBlock({
           <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Pague via Pix</div>
 
           <div className="mt-2 overflow-hidden rounded-xl border border-ink-200">
-            <div className="flex items-center justify-between gap-3 p-3">
-              <div className="min-w-0">
-                <div className="text-[11px] text-ink-400">
-                  Chave Pix{hasRealPix ? ` (${pixKeyType(pix!.pixKey)})` : ''}
-                </div>
-                <div className={`tnum truncate text-[15px] font-semibold ${hasRealPix ? 'text-ink-900' : 'italic text-ink-400'}`}>
-                  {hasRealPix ? pix!.pixKey : 'não informada'}
-                </div>
+            <div className="p-3.5">
+              <div className="text-[11px] text-ink-400">
+                Chave Pix{hasRealPix ? ` · ${pixKeyType(pix!.pixKey)}` : ''}
               </div>
-              <Button onClick={copy} disabled={!hasRealPix} aria-label="Copiar chave Pix" className="shrink-0">
+              <div className={`num-display tnum mt-0.5 break-all text-lg font-semibold ${hasRealPix ? 'text-ink-900' : 'italic text-ink-400'}`}>
+                {hasRealPix ? pix!.pixKey : 'não informada'}
+              </div>
+              <Button onClick={copy} disabled={!hasRealPix} aria-label="Copiar chave Pix" className="mt-3 w-full">
                 <span className="inline-flex items-center gap-1.5">
                   <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-                  {copied ? 'Copiado!' : 'Copiar chave'}
+                  {copied ? 'Chave copiada!' : 'Copiar chave Pix'}
                 </span>
               </Button>
             </div>
@@ -621,68 +646,99 @@ function PixBlock({
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
                   <svg viewBox="0 0 24 24" className="h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18M5 21V8l7-4 7 4v13M9 21v-4h6v4" /></svg>
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-ink-900">{pix!.receiverName}</div>
-                  {pix!.bankName && <div className="truncate text-xs text-ink-500">{pix!.bankName}</div>}
+                  <div className="truncate text-xs text-ink-500">
+                    {pix!.bankName ? `${pix!.bankName} · ` : ''}titular do contrato
+                  </div>
                 </div>
+                <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-pos-600" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg>
               </div>
             )}
           </div>
 
-          {!hasRealPix && (
+          {hasRealPix ? (
+            <div className="mt-3 flex items-start gap-2 rounded-xl bg-ink-50 px-3 py-2.5 text-sm text-ink-600">
+              <svg viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+              <span>Confira o valor de <b className="text-ink-800">{brl(state.currentInstallmentValue)}</b> antes de confirmar no app do seu banco.</span>
+            </div>
+          ) : (
             <p className="mt-2 text-xs text-ink-400">O vendedor ainda vai cadastrar a chave Pix.</p>
           )}
 
-          <div className="mt-5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Como pagar</div>
-          <ol className="mt-2.5 space-y-3">
-            {[
-              { t: 'Copie a chave Pix', d: 'Use o botão acima para copiar o recebedor.' },
-              { t: 'Pague no app do seu banco', d: `Pix → Pagar com chave → cole e confirme ${brl(state.currentInstallmentValue)}.` },
-              { t: 'Envie o comprovante', d: 'Anexe ao lado para o vendedor confirmar.' },
-            ].map((s, i) => (
-              <li key={i} className="flex gap-3">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[11px] font-bold text-brand-700">{i + 1}</span>
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-ink-800">{s.t}</div>
-                  <div className="text-xs text-ink-500">{s.d}</div>
-                </div>
-              </li>
-            ))}
-          </ol>
+          <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-400">
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+            Pagamento direto ao titular. A ContratoPay não intermedia valores.
+          </p>
         </div>
 
         {/* Comprovante */}
         <div className="p-5 sm:p-6">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Comprovante</div>
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Comprovante</div>
+            {receiptUrl ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-warn-50 px-2.5 py-0.5 text-[11px] font-semibold text-warn-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-warn-500" /> Em análise
+              </span>
+            ) : (
+              <span className="text-[11px] font-medium text-ink-400">Etapa final</span>
+            )}
+          </div>
 
           {receiptUrl ? (
-            <div className="mt-2">
-              <div className="flex items-center gap-3 rounded-xl border border-pos-500/30 bg-pos-50 p-2.5">
-                <button
-                  type="button"
-                  onClick={() => openReceipt(receiptUrl)}
-                  aria-label="Ver comprovante"
-                  className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-pos-500/20 bg-white"
-                >
+            <div className="mt-3">
+              {/* arquivo enviado */}
+              <div className="flex items-center gap-3 rounded-xl border border-ink-200 p-2.5">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-ink-200 bg-ink-50">
                   {receiptIsImage ? (
-                    <img src={receiptUrl} alt="Comprovante" className="h-full w-full object-cover" />
+                    <img src={receiptUrl} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <svg viewBox="0 0 24 24" className="h-6 w-6 text-pos-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
+                    <svg viewBox="0 0 24 24" className="h-5 w-5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
                   )}
-                </button>
+                </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 text-sm font-semibold text-pos-700">
-                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5L20 7" /></svg>
-                    Comprovante enviado
-                  </div>
-                  <div className="text-xs text-ink-500">Em análise pelo vendedor.</div>
+                  <div className="truncate text-sm font-semibold text-ink-900">{receiptName}</div>
+                  <div className="text-xs text-ink-400">{receiptKB} KB · enviado {receiptSent}</div>
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <button type="button" onClick={() => openReceipt(receiptUrl)} className="text-xs font-semibold text-brand-600 hover:underline">Ver</button>
-                  <button type="button" onClick={() => fileRef.current?.click()} className="text-xs font-semibold text-brand-600 hover:underline">Trocar</button>
-                </div>
+                <button type="button" onClick={() => openReceipt(receiptUrl)} aria-label="Ver comprovante" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink-200 text-ink-500 hover:bg-ink-50">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+                </button>
               </div>
-              <p className="mt-2 text-xs text-ink-400">Pode trocar o comprovante enquanto não for confirmado.</p>
+
+              {/* linha do tempo */}
+              <ol className="mt-4">
+                <li className="relative flex gap-3 pb-4">
+                  <span className="absolute left-[10px] top-[22px] h-[calc(100%-1.25rem)] w-px bg-ink-200" />
+                  <span className="z-10 flex h-[21px] w-[21px] shrink-0 items-center justify-center rounded-full bg-pos-500 text-white">
+                    <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5L20 7" /></svg>
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-ink-800">Comprovante enviado</div>
+                    <div className="text-xs text-ink-400">{receiptSent}</div>
+                  </div>
+                </li>
+                <li className="relative flex gap-3 pb-4">
+                  <span className="absolute left-[10px] top-[22px] h-[calc(100%-1.25rem)] w-px bg-ink-200" />
+                  <span className="z-10 flex h-[21px] w-[21px] shrink-0 items-center justify-center rounded-full border-2 border-warn-500 bg-white">
+                    <span className="h-2 w-2 rounded-full bg-warn-500" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-warn-700">Em análise pelo vendedor</div>
+                    <div className="text-xs text-ink-400">Resposta em até 1 dia útil</div>
+                  </div>
+                </li>
+                <li className="flex gap-3">
+                  <span className="z-10 h-[21px] w-[21px] shrink-0 rounded-full border-2 border-ink-200 bg-white" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-ink-400">Pagamento confirmado</div>
+                  </div>
+                </li>
+              </ol>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <Button variant="secondary" onClick={() => openReceipt(receiptUrl)}>Ver arquivo</Button>
+                <Button variant="secondary" onClick={() => fileRef.current?.click()}>Trocar</Button>
+              </div>
             </div>
           ) : (
             <>
@@ -691,21 +747,24 @@ function PixBlock({
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files?.[0]) }}
-                className={`mt-2 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors ${dragOver ? 'border-brand-400 bg-brand-50' : 'border-ink-300 hover:bg-ink-50'}`}
+                className={`mt-3 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-10 text-center transition-colors ${dragOver ? 'border-brand-400 bg-brand-50' : 'border-ink-300 hover:bg-ink-50'}`}
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600">
-                  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /><path d="M12 15V3" /></svg>
+                  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="m7 8 5-5 5 5" /><path d="M5 21h14" /></svg>
                 </div>
-                <div className="mt-3 text-base font-semibold text-ink-900">Enviar comprovante</div>
-                <p className="mt-1 text-sm text-ink-500">Arraste o arquivo aqui ou clique para selecionar.</p>
-                <p className="text-xs text-ink-400">PDF ou imagem, até 10 MB.</p>
-                <span className="mt-4 inline-flex rounded-lg border border-ink-200 px-4 py-2 text-sm font-semibold text-ink-700">
+                <div className="mt-3 text-base font-semibold text-ink-900">Já pagou? Anexe o comprovante</div>
+                <p className="mt-1 max-w-[15rem] text-sm text-ink-500">Arraste aqui ou selecione. PDF, JPG ou PNG até 10 MB.</p>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); fileRef.current?.click() }}
+                  className="mt-4 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-brand hover:bg-brand-700"
+                >
                   Selecionar arquivo
-                </span>
+                </button>
               </div>
-              <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-ink-400">
+              <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-400">
                 <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
-                Confirmação em até 1 dia útil após o envio.
+                O vendedor confirma o recebimento em até 1 dia útil.
               </p>
             </>
           )}
