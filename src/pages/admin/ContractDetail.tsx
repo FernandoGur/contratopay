@@ -729,6 +729,9 @@ function ReviewReceiptModal({
   const [amount, setAmount] = useState(payment.amount > 0 ? payment.amount : submittedRow?.value ?? 0)
   const [mode, setMode] = useState<ReviewMode>('parcela')
   const [count, setCount] = useState(1)
+  // No modo "amortizar": o valor inclui a parcela do mês (quita + amortiza o
+  // excedente) ou é só amortização (parcela continua a vencer)?
+  const [amortIncludesParcela, setAmortIncludesParcela] = useState(false)
 
   const isImage =
     !!payment.receiptUrl && /^data:image|\.(png|jpe?g|webp|gif)(\?|$)/i.test(payment.receiptUrl)
@@ -742,12 +745,19 @@ function ReviewReceiptModal({
   const parcelaTotal = r2(parcelaSelection.reduce((s, r) => s + r.value, 0))
   const maxParcelas = startIdx >= 0 ? sourceRows.slice(startIdx).filter((r) => r.status !== 'paga').length : 0
 
-  const amortSim = mode === 'amortizar' ? simulateExtraPayment(calc.contract, calc.scheduleOpts, amount) : null
+  // Modo amortizar: parte que vai para o saldo (amortização) depende de incluir
+  // ou não a parcela do mês.
+  const parcelaValueFin = isFin ? submittedRow?.value ?? 0 : 0
+  const amortAmount = amortIncludesParcela ? r2(Math.max(0, amount - parcelaValueFin)) : amount
+  const amortSim =
+    mode === 'amortizar' ? simulateExtraPayment(calc.contract, calc.scheduleOpts, amortAmount) : null
   const antSim = mode === 'antecipar' ? simulateAnticipateLast(calc.contract, calc.scheduleOpts, count) : null
 
-  // Aviso quando o valor recebido não bate com a ação escolhida.
-  const expected = mode === 'parcela' ? parcelaTotal : mode === 'amortizar' ? amount : antSim?.payToday ?? 0
+  // Avisos por modo.
+  const expected = mode === 'parcela' ? parcelaTotal : antSim?.payToday ?? 0
   const mismatch = mode !== 'amortizar' && Math.abs(amount - expected) >= 0.01
+  // No "amortizar + quitar parcela", o valor precisa cobrir a parcela do mês.
+  const amortShort = mode === 'amortizar' && amortIncludesParcela && amount < parcelaValueFin - 0.01
 
   function confirm() {
     if (mode === 'parcela') {
@@ -763,15 +773,16 @@ function ReviewReceiptModal({
         })
       })
     } else if (mode === 'amortizar' && isFin) {
-      // O comprovante vira uma amortização na própria parcela enviada (não a
-      // quita; abate o saldo e recalcula as próximas).
+      // Aplica na própria parcela enviada. Se "inclui a parcela do mês", quita a
+      // parcela (amount = valor da parcela) e amortiza o excedente; senão, é só
+      // amortização (amount 0, parcela continua a vencer).
       recordPayment({
         contractId: calc.contract.id,
         installmentType: 'financiamento',
         installmentNumber: payment.installmentNumber,
         paymentDate: date,
-        amount: 0,
-        amortizationAmount: amortSim?.extra ?? amount,
+        amount: amortIncludesParcela ? parcelaValueFin : 0,
+        amortizationAmount: amortSim?.extra ?? amortAmount,
         status: 'pago',
         receiptUrl: payment.receiptUrl,
       })
@@ -889,10 +900,34 @@ function ReviewReceiptModal({
 
           {/* Modo: amortizar */}
           {mode === 'amortizar' && amortSim && (
-            <div className="space-y-1 rounded-xl bg-brand-50 p-3 text-sm ring-1 ring-brand-200">
-              <Row label="Parcela passa a ser" value={`${brl(amortSim.currentInstallmentEstimate)} → ${brl(amortSim.newInstallmentEstimate)}`} />
-              <Row label="Saldo passa a ser" value={brl(amortSim.balanceAfter)} />
-              <Row label="Economiza de inflação" value={brl(amortSim.netIpcaSavings)} />
+            <div className="space-y-3">
+              {/* Escolha explícita: inclui a parcela do mês ou só amortização */}
+              <div className="grid gap-1.5">
+                <button
+                  onClick={() => setAmortIncludesParcela(false)}
+                  className={`rounded-xl border px-3 py-2 text-left text-sm transition-colors ${!amortIncludesParcela ? 'border-brand-300 bg-brand-50 ring-1 ring-brand-200' : 'border-ink-200 hover:bg-ink-50'}`}
+                >
+                  <div className="font-semibold text-ink-900">Só amortização</div>
+                  <div className="text-xs text-ink-500">Não quita a parcela do mês — ela continua a vencer. Todo o valor abate o saldo.</div>
+                </button>
+                <button
+                  onClick={() => setAmortIncludesParcela(true)}
+                  className={`rounded-xl border px-3 py-2 text-left text-sm transition-colors ${amortIncludesParcela ? 'border-brand-300 bg-brand-50 ring-1 ring-brand-200' : 'border-ink-200 hover:bg-ink-50'}`}
+                >
+                  <div className="font-semibold text-ink-900">Quitar a parcela do mês + amortizar o excedente</div>
+                  <div className="text-xs text-ink-500">Quita a parcela ({brl(parcelaValueFin)}) e o restante abate o saldo.</div>
+                </button>
+              </div>
+
+              <div className="space-y-1 rounded-xl bg-brand-50 p-3 text-sm ring-1 ring-brand-200">
+                {amortIncludesParcela && (
+                  <Row label={`Quita a parcela #${payment.installmentNumber}`} value={brl(parcelaValueFin)} />
+                )}
+                <Row label="Vai para amortização" value={brl(amortAmount)} />
+                <Row label="Parcela passa a ser" value={`${brl(amortSim.currentInstallmentEstimate)} → ${brl(amortSim.newInstallmentEstimate)}`} />
+                <Row label="Saldo passa a ser" value={brl(amortSim.balanceAfter)} />
+                <Row label="Economiza de inflação" value={brl(amortSim.netIpcaSavings)} />
+              </div>
             </div>
           )}
 
@@ -921,10 +956,15 @@ function ReviewReceiptModal({
               O valor recebido ({brl(amount)}) é diferente do total da ação ({brl(expected)}). Você pode confirmar mesmo assim.
             </Notice>
           )}
+          {amortShort && (
+            <Notice tone="warn">
+              O valor recebido ({brl(amount)}) é menor que a parcela do mês ({brl(parcelaValueFin)}); não dá para quitá-la. Use "Só amortização" ou aumente o valor.
+            </Notice>
+          )}
 
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button onClick={confirm}>Confirmar recebimento</Button>
+            <Button onClick={confirm} disabled={amortShort}>Confirmar recebimento</Button>
           </div>
         </div>
       </div>
