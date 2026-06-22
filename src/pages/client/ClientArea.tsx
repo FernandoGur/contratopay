@@ -48,6 +48,27 @@ export function ClientArea() {
   const [simMode, setSimMode] = useState<'reduzir' | 'antecipar'>('reduzir')
   const [parcelasFilter, setParcelasFilter] = useState<Filter>('todas')
 
+  // Indicador de rolagem das abas (mostra seta quando há mais abas à direita).
+  const navRef = useRef<HTMLDivElement>(null)
+  const [navScroll, setNavScroll] = useState({ left: false, right: false })
+  useEffect(() => {
+    const el = navRef.current
+    if (!el) return
+    const update = () =>
+      setNavScroll({
+        left: el.scrollLeft > 4,
+        right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+      })
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    return () => {
+      el.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [])
+  const scrollNav = (dir: number) => navRef.current?.scrollBy({ left: dir * 160, behavior: 'smooth' })
+
   if (!calc) {
     return (
       <div className="flex min-h-screen items-center justify-center text-ink-500">
@@ -102,9 +123,12 @@ export function ClientArea() {
             )}
           </div>
         </div>
-        {/* Abas — roláveis no mobile, com dica de rolagem nas bordas */}
+        {/* Abas roláveis — seta indica que há mais abas à direita */}
         <div className="relative">
-          <div className="mx-auto flex max-w-5xl gap-1.5 overflow-x-auto px-3 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div
+            ref={navRef}
+            className="mx-auto flex max-w-5xl gap-1.5 overflow-x-auto px-3 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
             {CLIENT_TABS.map((t) => (
               <button
                 key={t.id}
@@ -119,9 +143,34 @@ export function ClientArea() {
               </button>
             ))}
           </div>
-          {/* Dica de que há mais conteúdo para rolar (só no mobile) */}
-          <div className="pointer-events-none absolute inset-y-0 left-0 w-5 bg-gradient-to-r from-white to-transparent sm:hidden" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent sm:hidden" />
+
+          {/* Esquerda: fade + seta (quando dá para voltar) */}
+          {navScroll.left && (
+            <>
+              <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-white to-transparent" />
+              <button
+                onClick={() => scrollNav(-1)}
+                aria-label="Abas anteriores"
+                className="absolute left-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white text-ink-600 shadow-md ring-1 ring-ink-200 hover:text-ink-900"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+              </button>
+            </>
+          )}
+
+          {/* Direita: fade + seta (quando há mais abas) */}
+          {navScroll.right && (
+            <>
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-white to-transparent" />
+              <button
+                onClick={() => scrollNav(1)}
+                aria-label="Mais abas"
+                className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white text-brand-600 shadow-md ring-1 ring-ink-200 hover:text-brand-700"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+              </button>
+            </>
+          )}
         </div>
       </header>
 
