@@ -199,8 +199,12 @@ export function generateSchedule(
     const sumDisplayed = rows.reduce((s, r) => s + r.value, 0)
     const residual = round2(round2(sumExact) - sumDisplayed)
     if (Math.abs(residual) >= 0.01) {
-      const last = rows[rows.length - 1]
-      last.value = round2(last.value + residual)
+      // Deposita o resíduo na ÚLTIMA parcela com valor > 0 — não em parcelas que
+      // ficaram ZERADAS por amortização total antes do fim (senão exibiria valor
+      // negativo, ex.: −R$ 0,03). A soma continua == totalProjected.
+      let idx = rows.length - 1
+      while (idx > 0 && rows[idx].value <= 0) idx--
+      rows[idx].value = round2(rows[idx].value + residual)
     }
   }
 
@@ -292,16 +296,18 @@ export function computeContractState(
 
   const nextOpen = openFin[0] ?? null
 
-  // Saldo atual = saldo entrando na próxima parcela em aberto, descontadas as
-  // parcelas já quitadas que estão DEPOIS dela (antecipação das últimas). No
-  // pagamento sequencial não há parcela paga após a próxima, então isso é
-  // idêntico ao saldo após a última parcela paga.
+  // Saldo atual = valor PRESENTE das parcelas do financiamento ainda em aberto.
+  // Principal de hoje por parcela = saldo que entra na próxima parcela ÷ total de
+  // parcelas a partir dela; o saldo é (parcelas em aberto) × esse principal.
+  // (Não subtrai o `value` NOMINAL das parcelas antecipadas — esse valor carrega
+  // o IPCA futuro embutido, o que misturava dimensões e fazia o saldo divergir
+  // da simulação de antecipação. No pagamento sequencial dá exatamente o saldo
+  // que entra na próxima parcela, como antes.)
   let currentBalance = contract.financedValue
   if (nextOpen) {
-    const paidAfterNext = paidFin
-      .filter((r) => r.number > nextOpen.number)
-      .reduce((s, r) => s + r.value, 0)
-    currentBalance = Math.max(0, nextOpen.balanceBefore - paidAfterNext)
+    const vincendas = finRows.filter((r) => r.number >= nextOpen.number).length
+    const principalHoje = vincendas > 0 ? nextOpen.balanceBefore / vincendas : 0
+    currentBalance = openFin.length * principalHoje
   } else if (paidFin.length > 0) {
     currentBalance = 0 // tudo quitado
   }
