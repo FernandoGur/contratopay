@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { login } from '@/lib/repo'
+import { markUnlocked } from '@/lib/biometric'
 import { useSupabase } from '@/lib/supabase'
 import { Button, Field, Input, Notice } from '@/components/ui'
 import { LogoMark, Wordmark } from '@/components/Logo'
@@ -16,6 +17,7 @@ export function Login() {
     setLoading(true)
     try {
       await login(email, password)
+      markUnlocked() // login explícito já conta como destravado
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -28,6 +30,7 @@ export function Login() {
     setLoading(true)
     try {
       await login(em, pw)
+      markUnlocked()
     } catch (err) {
       setError((err as Error).message)
     } finally {

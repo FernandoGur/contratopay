@@ -32,6 +32,7 @@ import {
 } from '@/components/ui'
 import { Logo } from '@/components/Logo'
 import { PushButton } from '@/components/PushButton'
+import { BiometricToggle } from '@/components/BiometricToggle'
 
 type ClientTab = 'inicio' | 'parcelas' | 'pagamentos' | 'simular' | 'previsao' | 'contrato'
 
@@ -2100,6 +2101,16 @@ function ContratoTab({
           </p>
         </div>
         <PushButton />
+      </Card>
+
+      <Card className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-display text-base font-bold text-ink-900">Acesso por biometria</h3>
+          <p className="text-sm text-ink-500">
+            Bloqueie o app e entre com Face ID ou digital nas próximas vezes.
+          </p>
+        </div>
+        <BiometricToggle />
       </Card>
 
       <Card>

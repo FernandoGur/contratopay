@@ -3,6 +3,7 @@ import { useCurrentUser, useReady, useSyncError } from '@/lib/store'
 import { clearSyncError } from '@/lib/repo'
 import { LogoMark } from '@/components/Logo'
 import { ReceiptModal } from '@/components/ReceiptModal'
+import { BiometricGate } from '@/components/BiometricGate'
 import { AdminLayout } from '@/components/AdminLayout'
 import { Login } from '@/pages/Login'
 import { Dashboard } from '@/pages/admin/Dashboard'
@@ -58,6 +59,7 @@ export default function App() {
   if (!ready) return <LoadingScreen />
   return (
     <BrowserRouter>
+      <BiometricGate>
       <Routes>
         <Route path="/" element={<Home />} />
 
@@ -72,6 +74,7 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </BiometricGate>
       <ReceiptModal />
       <SyncErrorBanner />
     </BrowserRouter>
