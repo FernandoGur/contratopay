@@ -5,14 +5,18 @@ import {
   getContractCalc,
   getDb,
   recordPayment,
-  setPaymentStatus,
   setPixKey,
   updateContract,
 } from '@/lib/repo'
 import { useDb } from '@/lib/store'
 import { brl, pct } from '@/lib/format'
 import { formatDateBR, formatMonthBR, todayISO } from '@/lib/dates'
-import { summarizeByYear, type ScheduleRow } from '@/lib/finance'
+import {
+  simulateAnticipateLast,
+  simulateExtraPayment,
+  summarizeByYear,
+  type ScheduleRow,
+} from '@/lib/finance'
 import {
   Badge,
   Button,
@@ -48,6 +52,9 @@ export function ContractDetail() {
   const calc = id ? getContractCalc(id) : null
   const [tab, setTab] = useState<Tab>('resumo')
   const [payModal, setPayModal] = useState<{ row: ScheduleRow } | null>(null)
+  const [reviewPayment, setReviewPayment] = useState<
+    NonNullable<ReturnType<typeof getContractCalc>>['payments'][number] | null
+  >(null)
   const [ipcaModal, setIpcaModal] = useState(false)
   const [pixModal, setPixModal] = useState(false)
   const [editModal, setEditModal] = useState(false)
@@ -134,7 +141,11 @@ export function ContractDetail() {
           <CronogramaTab calc={calc} onPay={(row) => setPayModal({ row })} />
         )}
         {tab === 'pagamentos' && (
-          <PagamentosTab calc={calc} onEdit={(row) => setPayModal({ row })} />
+          <PagamentosTab
+            calc={calc}
+            onEdit={(row) => setPayModal({ row })}
+            onReview={(p) => setReviewPayment(p)}
+          />
         )}
         {tab === 'ipca' && <IpcaTab calc={calc} onApply={() => setIpcaModal(true)} />}
         {tab === 'pix' && <PixTab calc={calc} onEdit={() => setPixModal(true)} />}
@@ -146,6 +157,13 @@ export function ContractDetail() {
           calc={calc}
           row={payModal.row}
           onClose={() => setPayModal(null)}
+        />
+      )}
+      {reviewPayment && (
+        <ReviewReceiptModal
+          calc={calc}
+          payment={reviewPayment}
+          onClose={() => setReviewPayment(null)}
         />
       )}
       {ipcaModal && <IpcaModal calc={calc} onClose={() => setIpcaModal(false)} />}
@@ -345,9 +363,11 @@ function CronogramaTab({
 function PagamentosTab({
   calc,
   onEdit,
+  onReview,
 }: {
   calc: NonNullable<ReturnType<typeof getContractCalc>>
   onEdit: (row: ScheduleRow) => void
+  onReview: (payment: NonNullable<ReturnType<typeof getContractCalc>>['payments'][number]) => void
 }) {
   // Esconde lançamentos "pago" sem valor (R$ 0,00 e sem amortização) — não são
   // pagamentos de fato; mantém comprovantes enviados e demais status.
@@ -392,16 +412,9 @@ function PagamentosTab({
                 </td>
                 <td className="px-4 py-2.5">
                   {p.receiptUrl ? (
-                    <div className="flex items-center gap-2">
-                      <a href={p.receiptUrl} target="_blank" className="text-brand-600 hover:underline">
-                        Ver
-                      </a>
-                      {p.status !== 'pago' && (
-                        <Button size="sm" variant="ghost" onClick={() => setPaymentStatus(p.id, 'pago')}>
-                          Aprovar
-                        </Button>
-                      )}
-                    </div>
+                    <Button size="sm" variant="secondary" onClick={() => onReview(p)}>
+                      Revisar
+                    </Button>
                   ) : (
                     <span className="text-ink-400">—</span>
                   )}
@@ -672,6 +685,233 @@ function PaymentModal({
             Cancelar
           </Button>
           <Button onClick={save}>{existing ? 'Salvar alterações' : 'Confirmar pagamento'}</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Modal: Revisar comprovante (conferir e dar baixa)
+// ---------------------------------------------------------------------------
+type ReviewMode = 'parcela' | 'amortizar' | 'antecipar'
+
+function ReviewReceiptModal({
+  calc,
+  payment,
+  onClose,
+}: {
+  calc: NonNullable<ReturnType<typeof getContractCalc>>
+  payment: NonNullable<ReturnType<typeof getContractCalc>>['payments'][number]
+  onClose: () => void
+}) {
+  const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+  const isFin = payment.installmentType === 'financiamento'
+  const sourceRows = isFin ? calc.schedule.rows : calc.downRows
+  const openFin = calc.schedule.rows.filter((r) => r.status !== 'paga')
+  const submittedRow = sourceRows.find((r) => r.number === payment.installmentNumber)
+
+  const [date, setDate] = useState(payment.paymentDate || todayISO())
+  const [amount, setAmount] = useState(payment.amount > 0 ? payment.amount : submittedRow?.value ?? 0)
+  const [mode, setMode] = useState<ReviewMode>('parcela')
+  const [count, setCount] = useState(1)
+
+  const isImage =
+    !!payment.receiptUrl && /^data:image|\.(png|jpe?g|webp|gif)(\?|$)/i.test(payment.receiptUrl)
+
+  // Modo "quitar parcela(s)": consecutivas em aberto a partir da enviada.
+  const startIdx = submittedRow ? sourceRows.findIndex((r) => r.number === submittedRow.number) : -1
+  const parcelaSelection =
+    startIdx >= 0
+      ? sourceRows.slice(startIdx).filter((r) => r.status !== 'paga').slice(0, Math.max(1, count))
+      : []
+  const parcelaTotal = r2(parcelaSelection.reduce((s, r) => s + r.value, 0))
+  const maxParcelas = startIdx >= 0 ? sourceRows.slice(startIdx).filter((r) => r.status !== 'paga').length : 0
+
+  const amortSim = mode === 'amortizar' ? simulateExtraPayment(calc.contract, calc.scheduleOpts, amount) : null
+  const antSim = mode === 'antecipar' ? simulateAnticipateLast(calc.contract, calc.scheduleOpts, count) : null
+
+  // Aviso quando o valor recebido não bate com a ação escolhida.
+  const expected = mode === 'parcela' ? parcelaTotal : mode === 'amortizar' ? amount : antSim?.payToday ?? 0
+  const mismatch = mode !== 'amortizar' && Math.abs(amount - expected) >= 0.01
+
+  function confirm() {
+    if (mode === 'parcela') {
+      parcelaSelection.forEach((r, i) => {
+        recordPayment({
+          contractId: calc.contract.id,
+          installmentType: r.type,
+          installmentNumber: r.number,
+          paymentDate: date,
+          amount: r.value,
+          status: 'pago',
+          receiptUrl: i === 0 ? payment.receiptUrl : undefined,
+        })
+      })
+    } else if (mode === 'amortizar' && isFin) {
+      // O comprovante vira uma amortização na própria parcela enviada (não a
+      // quita; abate o saldo e recalcula as próximas).
+      recordPayment({
+        contractId: calc.contract.id,
+        installmentType: 'financiamento',
+        installmentNumber: payment.installmentNumber,
+        paymentDate: date,
+        amount: 0,
+        amortizationAmount: amortSim?.extra ?? amount,
+        status: 'pago',
+        receiptUrl: payment.receiptUrl,
+      })
+    } else if (mode === 'antecipar' && antSim) {
+      const lastK = openFin.slice(-antSim.count)
+      const per = r2(antSim.payToday / Math.max(1, lastK.length))
+      const inLastK = lastK.some((r) => r.number === payment.installmentNumber && isFin)
+      lastK.forEach((r, i) => {
+        recordPayment({
+          contractId: calc.contract.id,
+          installmentType: 'financiamento',
+          installmentNumber: r.number,
+          paymentDate: date,
+          amount: per,
+          status: 'pago',
+          receiptUrl: i === 0 ? payment.receiptUrl : undefined,
+        })
+      })
+      // Se o comprovante foi enviado para uma parcela fora das últimas, remove o
+      // lançamento original (foi realocado para a antecipação).
+      if (!inLastK) {
+        recordPayment({
+          contractId: calc.contract.id,
+          installmentType: payment.installmentType,
+          installmentNumber: payment.installmentNumber,
+          paymentDate: date,
+          amount: 0,
+          status: 'pago',
+        })
+      }
+    }
+    onClose()
+  }
+
+  const tab = (m: ReviewMode, label: string) => (
+    <button
+      key={m}
+      onClick={() => setMode(m)}
+      className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+        mode === m ? 'bg-brand-600 text-white' : 'bg-ink-100 text-ink-600 hover:bg-ink-200'
+      }`}
+    >
+      {label}
+    </button>
+  )
+
+  return (
+    <Modal open onClose={onClose} title={`Revisar comprovante — ${isFin ? 'parcela' : 'entrada'} #${payment.installmentNumber}`} wide>
+      <div className="grid gap-5 sm:grid-cols-2">
+        {/* Comprovante */}
+        <div>
+          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-400">Comprovante</div>
+          {payment.receiptUrl ? (
+            isImage ? (
+              <a href={payment.receiptUrl} target="_blank" rel="noreferrer">
+                <img src={payment.receiptUrl} alt="Comprovante" className="max-h-72 w-full rounded-xl border border-ink-200 object-contain" />
+              </a>
+            ) : (
+              <a href={payment.receiptUrl} target="_blank" rel="noreferrer" className="flex h-32 items-center justify-center rounded-xl border border-dashed border-ink-300 text-sm font-semibold text-brand-600 hover:bg-ink-50">
+                Abrir comprovante
+              </a>
+            )
+          ) : (
+            <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-ink-200 text-sm text-ink-400">
+              Sem comprovante anexado
+            </div>
+          )}
+        </div>
+
+        {/* Conferência */}
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Data do recebimento">
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </Field>
+            <Field label="Valor recebido">
+              <MoneyInput value={amount} onValueChange={setAmount} />
+            </Field>
+          </div>
+
+          <div>
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-400">Como aplicar</div>
+            <div className="flex gap-1.5">
+              {tab('parcela', 'Quitar parcela(s)')}
+              {isFin && openFin.length > 0 && tab('amortizar', 'Amortizar')}
+              {isFin && openFin.length > 1 && tab('antecipar', 'Antecipar fim')}
+            </div>
+          </div>
+
+          {/* Modo: quitar parcela(s) */}
+          {mode === 'parcela' && (
+            <div className="rounded-xl bg-ink-50 p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-ink-600">Quantas parcelas quitar?</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setCount((c) => Math.max(1, c - 1))} className="h-7 w-7 rounded-lg bg-white ring-1 ring-ink-200">−</button>
+                  <span className="num-display w-6 text-center font-bold">{parcelaSelection.length}</span>
+                  <button onClick={() => setCount((c) => Math.min(maxParcelas, c + 1))} className="h-7 w-7 rounded-lg bg-white ring-1 ring-ink-200">+</button>
+                </div>
+              </div>
+              <div className="mt-2 space-y-1">
+                {parcelaSelection.map((r) => (
+                  <div key={`${r.type}-${r.number}`} className="flex justify-between text-xs text-ink-500">
+                    <span>{r.type === 'entrada' ? 'Entrada' : 'Parcela'} {r.number} · vence {formatDateBR(r.dueDate)}</span>
+                    <span className="num-display text-ink-700">{brl(r.value)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 flex justify-between border-t border-ink-200 pt-2 text-sm font-semibold">
+                <span className="text-ink-700">Total das parcelas</span>
+                <span className="num-display text-ink-900">{brl(parcelaTotal)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Modo: amortizar */}
+          {mode === 'amortizar' && amortSim && (
+            <div className="space-y-1 rounded-xl bg-brand-50 p-3 text-sm ring-1 ring-brand-200">
+              <Row label="Parcela passa a ser" value={`${brl(amortSim.currentInstallmentEstimate)} → ${brl(amortSim.newInstallmentEstimate)}`} />
+              <Row label="Saldo passa a ser" value={brl(amortSim.balanceAfter)} />
+              <Row label="Economiza de inflação" value={brl(amortSim.netIpcaSavings)} />
+            </div>
+          )}
+
+          {/* Modo: antecipar fim */}
+          {mode === 'antecipar' && antSim && (
+            <div className="rounded-xl bg-brand-50 p-3 text-sm ring-1 ring-brand-200">
+              <div className="flex items-center justify-between">
+                <span className="text-ink-600">Quitar as últimas</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setCount((c) => Math.max(1, c - 1))} className="h-7 w-7 rounded-lg bg-white ring-1 ring-ink-200">−</button>
+                  <span className="num-display w-6 text-center font-bold">{antSim.count}</span>
+                  <button onClick={() => setCount((c) => Math.min(antSim.maxCount, c + 1))} className="h-7 w-7 rounded-lg bg-white ring-1 ring-ink-200">+</button>
+                </div>
+              </div>
+              <div className="mt-2 space-y-1">
+                <Row label="Você paga hoje" value={brl(antSim.payToday)} />
+                <Row label="Valor cheio no futuro (c/ IPCA)" value={brl(antSim.futureValueWithIpca)} />
+                <Row label="Economiza de inflação" value={brl(antSim.ipcaDiscount)} />
+                <Row label="Nova última parcela" value={antSim.newLastInstallmentNumber ? `#${antSim.newLastInstallmentNumber} · ${formatDateBR(antSim.newLastInstallmentDate)}` : 'contrato quitado'} />
+              </div>
+            </div>
+          )}
+
+          {mismatch && (
+            <Notice tone="warn">
+              O valor recebido ({brl(amount)}) é diferente do total da ação ({brl(expected)}). Você pode confirmar mesmo assim.
+            </Notice>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button onClick={confirm}>Confirmar recebimento</Button>
+          </div>
         </div>
       </div>
     </Modal>
