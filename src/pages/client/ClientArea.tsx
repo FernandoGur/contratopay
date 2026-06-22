@@ -427,14 +427,15 @@ function InicioDashboard({
         </div>
       </div>
 
-      {/* Conteúdo principal em duas colunas */}
-      <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
+      {/* Conteúdo principal em duas colunas (mesma altura no desktop) */}
+      <div className="grid gap-5 lg:grid-cols-3 lg:items-stretch">
         {/* Coluna principal: pagamento + simulador */}
         <div className="flex flex-col gap-5 lg:col-span-2">
           <PixBlock calc={calc} pix={pix} />
 
+          {/* Atalho "Reduza" — só no mobile; no desktop o simulador fica na aba */}
           {state.nextInstallmentNumber && (
-            <Card className="card-hover border-brand-200 bg-brand-50/40">
+            <Card className="card-hover border-brand-200 bg-brand-50/40 lg:hidden">
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-600">
                   <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -736,7 +737,7 @@ function PixBlock({
   }
 
   return (
-    <Card className="overflow-hidden p-0">
+    <Card className="flex flex-col overflow-hidden p-0 lg:h-full">
       <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = '' }} />
 
       {/* Faixa de valor */}
@@ -759,7 +760,7 @@ function PixBlock({
       </div>
 
       {/* Duas colunas: pague via Pix · comprovante */}
-      <div className="grid items-stretch sm:grid-cols-2 sm:divide-x sm:divide-ink-100">
+      <div className="grid items-stretch sm:grid-cols-2 sm:divide-x sm:divide-ink-100 lg:flex-1">
         {/* Pague via Pix */}
         <div className="flex flex-col p-5 sm:p-6">
           <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Pague via Pix</div>

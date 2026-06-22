@@ -26,3 +26,7 @@ dist-ssr
 # Variáveis de ambiente (chaves)
 .env
 .env.local
+
+# Artefatos de origem da identidade visual
+Logo3.0.jpg
+logoGPT.jpg

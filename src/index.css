@@ -7,20 +7,20 @@
    ========================================================================= */
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Inter Tight', 'Inter', system-ui, sans-serif;
+  --font-display: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
-  /* Marca — índigo / iris */
-  --color-brand-50: #eeeefb;
-  --color-brand-100: #e4e4fb;
-  --color-brand-200: #d4d6f7;
-  --color-brand-300: #b7b9f1;
-  --color-brand-400: #9092ec;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #5b5bd6;
-  --color-brand-700: #4d49c4;
-  --color-brand-800: #3e3aa0;
-  --color-brand-900: #333080;
-  --color-brand-950: #20204c;
+  /* Marca — violeta ContratoPay 3.0 (primária #5A3FF2; ink navy #0F172A) */
+  --color-brand-50: #f1eeff;
+  --color-brand-100: #e6e0ff;
+  --color-brand-200: #d0c5ff;
+  --color-brand-300: #b3a1ff;
+  --color-brand-400: #9173ff;
+  --color-brand-500: #6f4ef7;
+  --color-brand-600: #5a3ff2;
+  --color-brand-700: #4a2fd6;
+  --color-brand-800: #3c27ab;
+  --color-brand-900: #2f2184;
+  --color-brand-950: #0f172a;
 
   /* Neutros frios (cinza levemente azulado, não morto) */
   --color-ink-50: #f8f9fb;
@@ -55,7 +55,7 @@
   /* Sombras — sutis, em camadas */
   --shadow-card: 0 1px 2px rgba(16, 18, 28, 0.04), 0 1px 3px rgba(16, 18, 28, 0.05);
   --shadow-card-hover: 0 2px 4px rgba(16, 18, 28, 0.04), 0 10px 28px -10px rgba(16, 18, 28, 0.16);
-  --shadow-brand: 0 1px 2px rgba(79, 70, 229, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --shadow-brand: 0 1px 2px rgba(90, 63, 242, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 @layer base {
@@ -103,10 +103,10 @@
     border-color: var(--color-ink-300);
     transform: translateY(-1px);
   }
-  /* Gradiente de marca para heros e destaques (índigo) */
+  /* Gradiente de marca para heros e destaques (violeta → azul, como a logo 3.0) */
   .bg-brand-gradient {
     background:
-      radial-gradient(120% 140% at 100% 0%, #6f72e6 0%, transparent 45%),
-      linear-gradient(135deg, #6366f1 0%, #5b5bd6 55%, #4f46c9 100%);
+      radial-gradient(120% 140% at 100% 0%, #7c4dff 0%, transparent 45%),
+      linear-gradient(135deg, #5a3ff2 0%, #6b4ef7 50%, #2563eb 100%);
   }
 }
