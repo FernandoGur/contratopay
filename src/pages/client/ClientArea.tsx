@@ -1454,8 +1454,8 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
         Quitar as últimas parcelas com desconto de IPCA
       </h3>
       <p className="mt-1 text-sm text-ink-500">
-        As últimas parcelas ainda vão receber vários reajustes. Quitando agora, você paga o valor de
-        hoje e economiza todo o IPCA que ainda não foi aplicado nelas. Isso encurta o seu contrato.
+        Quite as últimas parcelas pelo valor de hoje e economize a correção da inflação que ainda
+        viria pela frente. Seu contrato termina mais cedo.
       </p>
 
       <div className="mt-4">
