@@ -24,7 +24,7 @@ export function Wordmark({
 }) {
   const sizes = { sm: 'text-[15px]', md: 'text-[17px]', lg: 'text-[22px]' }
   return (
-    <span className={`font-display font-bold tracking-[-0.03em] ${sizes[size]} ${className}`}>
+    <span className={`block font-display font-bold tracking-[-0.03em] ${sizes[size]} ${className}`}>
       <span className="text-brand-950">Contrato</span>
       <span className="text-brand-600">Pay</span>
     </span>

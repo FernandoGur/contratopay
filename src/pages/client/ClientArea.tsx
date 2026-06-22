@@ -68,9 +68,9 @@ export function ClientArea() {
           <button
             onClick={() => setTab('inicio')}
             aria-label="Voltar para a Início"
-            className="-m-1 rounded-lg p-1 transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-300"
+            className="-m-1 cursor-pointer rounded-lg p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-300"
           >
-            <Logo subtitle="Gestão Inteligente de Contratos" markClassName="h-9 w-9" />
+            <Logo subtitle="Gestão Inteligente de Contratos" markClassName="h-11 w-11" size="lg" />
           </button>
 
           {/* Avatar do cliente + sair */}
@@ -123,7 +123,6 @@ export function ClientArea() {
             pix={pix}
             onSimular={() => setTab('simular')}
             onVerParcelas={() => setTab('parcelas')}
-            onVerContrato={() => setTab('contrato')}
           />
         )}
 
@@ -175,13 +174,11 @@ function InicioDashboard({
   pix,
   onSimular,
   onVerParcelas,
-  onVerContrato,
 }: {
   calc: NonNullable<ReturnType<typeof getContractCalc>>
   pix: ReturnType<typeof getActivePixKey>
   onSimular: () => void
   onVerParcelas: () => void
-  onVerContrato: () => void
 }) {
   const { state, contract, client } = calc
   const downRows = calc.downRows
@@ -299,13 +296,13 @@ function InicioDashboard({
       </div>
 
       {/* Conteúdo principal em duas colunas */}
-      <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
+      <div className="grid gap-5 lg:grid-cols-3 lg:items-stretch">
         {/* Coluna principal: pagamento + simulador */}
-        <div className="space-y-5 lg:col-span-2">
+        <div className="flex flex-col gap-5 lg:col-span-2">
           <PixBlock calc={calc} pix={pix} />
 
           {state.nextInstallmentNumber && (
-            <Card className="card-hover border-brand-200 bg-brand-50/40">
+            <Card className="card-hover flex flex-col justify-center border-brand-200 bg-brand-50/40 lg:flex-1">
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-600">
                   <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -420,22 +417,6 @@ function InicioDashboard({
               </div>
             </Card>
           )}
-
-          <Card>
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="font-display text-base font-semibold text-ink-900">Informações do contrato</h3>
-              <button onClick={onVerContrato} className="text-sm font-semibold text-brand-600 hover:underline">
-                Detalhes
-              </button>
-            </div>
-            <Row label="Valor total da compra" value={brl(contract.totalValue)} />
-            <Row label="Entrada" value={`${brl(contract.downPaymentValue)} em ${contract.downPaymentInstallments}x`} />
-            <Row label="Valor financiado" value={brl(contract.financedValue)} />
-            <Row
-              label="Próxima correção (estimada)"
-              value={state.nextCorrection ? formatDateBR(state.nextCorrection.date) : '—'}
-            />
-          </Card>
         </div>
       </div>
     </div>
