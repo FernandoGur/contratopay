@@ -1039,6 +1039,12 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
     [calc, extra],
   )
 
+  // A "nova parcela" é em reais de hoje: vale até o próximo reajuste anual e
+  // depois sobe pela inflação, como as demais. Pega o próximo reajuste futuro
+  // (e o valor projetado da parcela após ele) para deixar isso explícito.
+  const futureCorrections = sim.discountBreakdown.filter((s) => s.avoidedIpca > 0)
+  const nextCorrection = futureCorrections[0] ?? null
+
   // Sugestões de parcela "redonda" abaixo da atual.
   const roundBase = Math.floor(currentParcela / 500) * 500
   const roundTargets = [0, 1, 2, 3]
@@ -1142,7 +1148,8 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
             <div className="mt-3 rounded-xl bg-brand-50 px-4 py-3 ring-1 ring-brand-200">
               <div className="text-sm text-brand-800">
                 Para a parcela ficar em{' '}
-                <b className="num-display">{brl(target)}</b>, pague um extra de
+                <b className="num-display">{brl(target)}</b>{' '}
+                <span className="text-brand-600">(em reais de hoje)</span>, pague um extra de
               </div>
               <div className="num-display mt-0.5 text-2xl font-extrabold text-brand-700">
                 {brl(extra)}
@@ -1169,7 +1176,50 @@ function ReduzirSim({ calc }: { calc: NonNullable<ReturnType<typeof getContractC
               hoje é {brl(sim.currentInstallmentEstimate)} ·{' '}
               <span className="font-semibold text-pos-600">−{brl(sim.monthlySavings)} por mês</span>
             </div>
+            {nextCorrection && (
+              <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-medium text-brand-700 ring-1 ring-brand-200">
+                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
+                valor de hoje · vale até {formatDateBR(nextCorrection.date)}
+              </div>
+            )}
           </div>
+
+          {/* Até quando esse valor vale — reajuste anual pelo IPCA */}
+          {nextCorrection && (
+            <div className="rounded-xl border border-ink-200 p-3.5">
+              <div className="text-sm font-semibold text-ink-800">Até quando esse valor vale</div>
+              <p className="mt-1 text-xs text-ink-500">
+                A parcela é calculada em reais de hoje. A cada 12 meses ela é reajustada pela
+                inflação (IPCA), como todas as outras — então não fica fixa nesse valor. O que você
+                amortiza agora reduz a base de todos os reajustes seguintes.
+              </p>
+              <div className="mt-3 flex items-stretch gap-2 text-center">
+                <div className="flex-1 rounded-lg bg-pos-50 p-2.5 ring-1 ring-pos-500/20">
+                  <div className="text-[10px] uppercase tracking-wide text-ink-400">
+                    de hoje até {formatDateBR(nextCorrection.date)}
+                  </div>
+                  <div className="num-display mt-0.5 text-sm font-bold text-pos-700">
+                    {brl(sim.newInstallmentEstimate)}
+                  </div>
+                </div>
+                <div className="flex items-center text-ink-300">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                </div>
+                <div className="flex-1 rounded-lg bg-ink-50 p-2.5">
+                  <div className="text-[10px] uppercase tracking-wide text-ink-400">
+                    a partir de {formatDateBR(nextCorrection.date)}
+                  </div>
+                  <div className="num-display mt-0.5 text-sm font-bold text-ink-800">
+                    ~{brl(nextCorrection.installmentWithExtra)}
+                  </div>
+                  <div className="text-[10px] text-ink-400">IPCA est. ~{pct(nextCorrection.ipca)}</div>
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] text-ink-400">
+                Veja a evolução ano a ano em "Ver detalhes da economia".
+              </p>
+            </div>
+          )}
 
           {/* Dois fatos simples */}
           <div className="grid grid-cols-2 gap-3">
