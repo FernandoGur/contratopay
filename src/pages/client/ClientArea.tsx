@@ -1071,30 +1071,28 @@ function ExtraBlock({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-ink-100 p-1">
         <button
           onClick={() => setMode('reduzir')}
+          aria-current={mode === 'reduzir' ? 'true' : undefined}
           className={`rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold leading-tight transition-all sm:text-sm ${
-            mode === 'reduzir'
-              ? 'bg-brand-600 text-white shadow-[var(--shadow-brand)]'
-              : 'bg-white text-ink-600 ring-1 ring-ink-200'
+            mode === 'reduzir' ? 'bg-white text-brand-700 shadow-sm' : 'text-ink-500 hover:text-ink-800'
           }`}
         >
           Reduzir parcelas
-          <span className={`mt-0.5 hidden text-xs font-normal sm:block ${mode === 'reduzir' ? 'text-white/80' : 'text-ink-400'}`}>
+          <span className="mt-0.5 hidden text-xs font-normal text-ink-400 sm:block">
             pago um extra e o valor cai
           </span>
         </button>
         <button
           onClick={() => setMode('antecipar')}
+          aria-current={mode === 'antecipar' ? 'true' : undefined}
           className={`rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold leading-tight transition-all sm:text-sm ${
-            mode === 'antecipar'
-              ? 'bg-brand-600 text-white shadow-[var(--shadow-brand)]'
-              : 'bg-white text-ink-600 ring-1 ring-ink-200'
+            mode === 'antecipar' ? 'bg-white text-brand-700 shadow-sm' : 'text-ink-500 hover:text-ink-800'
           }`}
         >
           Quitar últimas
-          <span className={`mt-0.5 hidden text-xs font-normal sm:block ${mode === 'antecipar' ? 'text-white/80' : 'text-ink-400'}`}>
+          <span className="mt-0.5 hidden text-xs font-normal text-ink-400 sm:block">
             com desconto do IPCA futuro
           </span>
         </button>
@@ -1888,8 +1886,6 @@ function ParcelasTab({
 // Aba: Previsão (estimativa de correção anual)
 // ---------------------------------------------------------------------------
 function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContractCalc>> }) {
-  const [, mm, dd] = calc.contract.financingStartDate.split('-')
-  const anniversary = `${dd}/${mm}`
   const [forecast, setForecast] = useState(calc.contract.forecastAnnualIpca)
   const [customText, setCustomText] = useState('')
 
@@ -1912,8 +1908,8 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
           Seu contrato não tem juros
         </div>
         <p className="mt-1 text-sm text-brand-800/90">
-          A cada <b>12 meses</b> (dia {anniversary}), o valor é apenas <b>atualizado pela inflação
-          oficial (IPCA)</b>.
+          A cada <b>12 meses</b> o valor é apenas <b>atualizado pela inflação oficial (IPCA)</b>
+          acumulada — apurada no dia 15 (índice já publicado) e aplicada a partir da parcela seguinte.
         </p>
       </div>
 
