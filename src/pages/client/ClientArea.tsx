@@ -10,7 +10,7 @@ import {
 } from '@/lib/repo'
 import { useCurrentUser, useDb } from '@/lib/store'
 import { brl, num, parseMoney, pct } from '@/lib/format'
-import { formatDateBR, todayISO } from '@/lib/dates'
+import { formatDateBR, ipcaApuracao, todayISO } from '@/lib/dates'
 import { openReceipt } from '@/lib/receipt'
 import { parseReceiptNotes } from '@/lib/requests'
 import {
@@ -2052,6 +2052,17 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
                   <span className="font-semibold text-ink-900">{brl(c.newInstallment)}</span>
                 </span>
               </div>
+              {(() => {
+                const ap = ipcaApuracao(c.date)
+                return (
+                  <div className="mt-1 flex items-start gap-1.5 border-t border-ink-100 pt-2 text-[11px] text-ink-400">
+                    <svg viewBox="0 0 24 24" className="mt-px h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 7v5l3 2" /></svg>
+                    <span>
+                      Apuração em {formatDateBR(ap.apuracao)} · IPCA acumulado de {ap.janela}
+                    </span>
+                  </div>
+                )
+              })()}
             </div>
           </Card>
         )

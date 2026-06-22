@@ -97,10 +97,11 @@ function NewContractModal({ open, onClose }: { open: boolean; onClose: () => voi
     totalValue: 350000,
     downPaymentValue: 17500,
     downPaymentInstallments: '12',
-    downPaymentStartDate: '2025-06-15',
+    downPaymentStartDate: '2026-07-01',
     financingInstallments: '60',
-    financingStartDate: '2026-06-15',
-    correctionBaseDate: '2026-06-15',
+    financingStartDate: '2026-07-01',
+    // Base de correção = 1ª parcela: o 1º reajuste cai 12 meses depois (dia 01).
+    correctionBaseDate: '2026-07-01',
     forecastAnnualIpca: '5',
   })
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>

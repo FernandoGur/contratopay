@@ -12,7 +12,7 @@ import {
 } from '@/lib/repo'
 import { useDb } from '@/lib/store'
 import { brl, pct } from '@/lib/format'
-import { formatDateBR, formatMonthBR, todayISO } from '@/lib/dates'
+import { formatDateBR, formatMonthBR, ipcaApuracao, todayISO } from '@/lib/dates'
 import { openReceipt } from '@/lib/receipt'
 import { parseReceiptNotes } from '@/lib/requests'
 import {
@@ -1160,6 +1160,16 @@ function IpcaModal({
         <Field label="IPCA acumulado (% no período)">
           <Input value={ipca} onChange={(e) => setIpca(e.target.value)} placeholder="Ex.: 4,62" />
         </Field>
+        {date && (
+          <div className="flex items-start gap-2 rounded-lg bg-ink-50 px-3 py-2 text-xs text-ink-600">
+            <svg viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 7v5l3 2" /></svg>
+            <span>
+              Apuração em <b>{formatDateBR(ipcaApuracao(date).apuracao)}</b> — lance o IPCA acumulado
+              de <b>{ipcaApuracao(date).janela}</b> (12 meses já publicados). A correção sensibiliza
+              a parcela de {formatDateBR(date)}.
+            </span>
+          </div>
+        )}
         <Field label="Observação">
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>

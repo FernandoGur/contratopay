@@ -53,6 +53,20 @@ export function formatMonthBR(d: ISODate): string {
   return `${MESES_ABREV[m - 1]}/${y}`
 }
 
+/**
+ * Regra de apuração do IPCA para um aniversário (vencimento da parcela que sai
+ * reajustada): apura-se no dia 15 do mês anterior — quando o IPCA do mês passado
+ * já foi publicado — usando o acumulado dos 12 meses que terminam no mês anterior
+ * à apuração. Ex.: parcela 01/07/2027 → apuração 15/06/2027 · jun/2026 a mai/2027.
+ */
+export function ipcaApuracao(annivISO: ISODate): { apuracao: ISODate; janela: string } {
+  const { y, m } = parseISO(addMonths(annivISO, -1))
+  const apuracao = toISO(y, m, 15)
+  const fim = addMonths(annivISO, -2)
+  const inicio = addMonths(fim, -11)
+  return { apuracao, janela: `${formatMonthBR(inicio)} a ${formatMonthBR(fim)}` }
+}
+
 /** Data de hoje como ISO, no fuso local. */
 export function todayISO(): ISODate {
   const now = new Date()
