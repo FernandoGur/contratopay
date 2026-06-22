@@ -13,6 +13,7 @@ import {
 import { useDb } from '@/lib/store'
 import { brl, pct } from '@/lib/format'
 import { formatDateBR, formatMonthBR, todayISO } from '@/lib/dates'
+import { openReceipt } from '@/lib/receipt'
 import {
   simulateAnticipateLast,
   simulateExtraPayment,
@@ -873,13 +874,13 @@ function ReviewReceiptModal({
           <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-400">Comprovante</div>
           {payment.receiptUrl ? (
             isImage ? (
-              <a href={payment.receiptUrl} target="_blank" rel="noreferrer">
+              <button type="button" onClick={() => openReceipt(payment.receiptUrl)} className="block w-full">
                 <img src={payment.receiptUrl} alt="Comprovante" className="max-h-72 w-full rounded-xl border border-ink-200 object-contain" />
-              </a>
+              </button>
             ) : (
-              <a href={payment.receiptUrl} target="_blank" rel="noreferrer" className="flex h-32 items-center justify-center rounded-xl border border-dashed border-ink-300 text-sm font-semibold text-brand-600 hover:bg-ink-50">
+              <button type="button" onClick={() => openReceipt(payment.receiptUrl)} className="flex h-32 w-full items-center justify-center rounded-xl border border-dashed border-ink-300 text-sm font-semibold text-brand-600 hover:bg-ink-50">
                 Abrir comprovante
-              </a>
+              </button>
             )
           ) : (
             <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-ink-200 text-sm text-ink-400">

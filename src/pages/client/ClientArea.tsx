@@ -10,6 +10,7 @@ import {
 import { useCurrentUser, useDb } from '@/lib/store'
 import { brl, num, parseMoney, pct } from '@/lib/format'
 import { formatDateBR } from '@/lib/dates'
+import { openReceipt } from '@/lib/receipt'
 import {
   generateSchedule,
   simulateAnticipateLast,
@@ -1073,13 +1074,18 @@ function ParcelasTab({
     }
   }
   // Extrato de pagamentos (parcelas pagas, entradas e amortizações).
+  // Ordem global p/ desempate dentro da mesma data (amortização > financ. > entrada).
+  const extratoOrder = (p: (typeof calc.payments)[number]) =>
+    (p.installmentType === 'amortizacao' ? 2000 : p.installmentType === 'financiamento' ? 1000 : 0) +
+    p.installmentNumber
   const extrato = [...calc.payments]
     .filter(
       (p) =>
         (p.status === 'pago' && (p.amount > 0 || p.amortizationAmount > 0)) ||
         p.status === 'comprovante_enviado',
     )
-    .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate))
+    // Mais recente primeiro; mesma data → número maior primeiro (sequência limpa).
+    .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate) || extratoOrder(b) - extratoOrder(a))
 
   // Ao abrir a aba (inclusive via "Ver todas"), rola até a última parcela paga.
   const paidRows = rows.filter((r) => r.status === 'paga')
@@ -1224,14 +1230,13 @@ function ParcelasTab({
                         {receiptByKey[`${r.type}-${r.number}`] && (
                           <>
                             {' · '}
-                            <a
-                              href={receiptByKey[`${r.type}-${r.number}`]}
-                              target="_blank"
-                              rel="noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => openReceipt(receiptByKey[`${r.type}-${r.number}`])}
                               className="font-medium text-brand-600 hover:underline"
                             >
                               comprovante
-                            </a>
+                            </button>
                           </>
                         )}
                       </div>
@@ -1301,14 +1306,13 @@ function ParcelasTab({
                       {p.receiptUrl && (
                         <>
                           {' · '}
-                          <a
-                            href={p.receiptUrl}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => openReceipt(p.receiptUrl)}
                             className="font-medium text-brand-600 hover:underline"
                           >
                             comprovante
-                          </a>
+                          </button>
                         </>
                       )}
                     </div>
