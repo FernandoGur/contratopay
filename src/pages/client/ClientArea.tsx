@@ -15,7 +15,6 @@ import { openReceipt } from '@/lib/receipt'
 import { parseReceiptNotes } from '@/lib/requests'
 import {
   generateSchedule,
-  isAnticipated,
   openBalanceAfter,
   projectOpenCorrections,
   simulateAnticipateLast,
@@ -1921,8 +1920,11 @@ function SaldoDevedorChart({
   // que NÃO foram quitadas antecipadamente (fora de ordem). Para contratos sem
   // antecipação, equivale ao saldo planejado (nº restante × valor do período).
   const rows = schedule.rows
+  // Conta só as parcelas do financiamento ainda EM ABERTO a partir do ponto —
+  // exclui tanto as pagas em sequência quanto as antecipadas, para o saldo de
+  // cada aniversário refletir o que o cliente realmente ainda deve.
   const openCountFrom = (n: number) =>
-    rows.filter((r) => r.type === 'financiamento' && r.number >= n && !isAnticipated(rows, r)).length
+    rows.filter((r) => r.type === 'financiamento' && r.number >= n && r.status !== 'paga').length
 
   // Uma barra por aniversário (saldo no início de cada ciclo de 12 meses) e a
   // barra final "quitado". O saldo cai ano após ano mesmo com o reajuste anual.
