@@ -873,15 +873,45 @@ function ReviewReceiptModal({
         <div>
           <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-400">Comprovante</div>
           {payment.receiptUrl ? (
-            isImage ? (
-              <button type="button" onClick={() => openReceipt(payment.receiptUrl)} className="block w-full">
-                <img src={payment.receiptUrl} alt="Comprovante" className="max-h-72 w-full rounded-xl border border-ink-200 object-contain" />
-              </button>
-            ) : (
-              <button type="button" onClick={() => openReceipt(payment.receiptUrl)} className="flex h-32 w-full items-center justify-center rounded-xl border border-dashed border-ink-300 text-sm font-semibold text-brand-600 hover:bg-ink-50">
-                Abrir comprovante
-              </button>
-            )
+            <div className="overflow-hidden rounded-xl border border-ink-200 bg-ink-50">
+              {isImage ? (
+                <button
+                  type="button"
+                  onClick={() => openReceipt(payment.receiptUrl)}
+                  className="group relative block w-full bg-white"
+                >
+                  <img src={payment.receiptUrl} alt="Comprovante" className="max-h-72 w-full object-contain" />
+                  <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-lg bg-ink-900/70 px-2 py-1 text-[11px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    Abrir ↗
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openReceipt(payment.receiptUrl)}
+                  className="flex h-40 w-full flex-col items-center justify-center gap-2 text-brand-600 hover:bg-ink-100"
+                >
+                  <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                  </svg>
+                  <span className="text-sm font-semibold">Abrir comprovante</span>
+                </button>
+              )}
+              <div className="flex items-center justify-between border-t border-ink-200 bg-white px-3 py-2">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-warn-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-warn-500" />
+                  Aguardando validação
+                </span>
+                <button
+                  type="button"
+                  onClick={() => openReceipt(payment.receiptUrl)}
+                  className="text-xs font-semibold text-brand-600 hover:underline"
+                >
+                  Abrir ↗
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-ink-200 text-sm text-ink-400">
               Sem comprovante anexado
