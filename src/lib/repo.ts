@@ -345,10 +345,15 @@ export function getContractCalc(contractId: string): ContractCalc | null {
     // Só quita a parcela se foi efetivamente paga (valor > 0). Um comprovante
     // aprovado sem valor (R$ 0,00) NÃO deve dar a parcela como quitada.
     if (p.status === 'pago' && p.amount > 0) {
-      if (p.installmentType === 'financiamento') paidFin.add(p.installmentNumber)
-      else paidDown.add(p.installmentNumber)
+      if (p.installmentType === 'entrada') paidDown.add(p.installmentNumber)
+      else if (p.installmentType === 'financiamento') paidFin.add(p.installmentNumber)
     }
-    if (p.amortizationAmount > 0 && p.installmentType === 'financiamento') {
+    // Amortização: tanto a combinada (na parcela do financiamento) quanto o
+    // lançamento avulso ('amortizacao') abatem o saldo no ponto indicado.
+    if (
+      p.amortizationAmount > 0 &&
+      (p.installmentType === 'financiamento' || p.installmentType === 'amortizacao')
+    ) {
       amortizations[p.installmentNumber] =
         (amortizations[p.installmentNumber] ?? 0) + p.amortizationAmount
     }
@@ -568,6 +573,53 @@ export function recordPayment(data: {
   log('pagamento_registrado', `Pagamento registrado: ${label}.`, data.contractId)
   persist()
   return base
+}
+
+/**
+ * Registra uma AMORTIZAÇÃO avulsa (lançamento próprio, sem número de parcela).
+ * `applyAtInstallment` é apenas o ponto do cronograma onde o abatimento passa a
+ * valer (uso interno do motor). Cada chamada cria um lançamento novo (permite
+ * várias amortizações) e nunca quita a parcela.
+ */
+export function recordAmortization(data: {
+  contractId: string
+  applyAtInstallment: number
+  amount: number
+  paymentDate: string
+  receiptUrl?: string | null
+}): Payment | null {
+  if (!(data.amount > 0)) return null
+  const row: Payment = {
+    id: uid('amort'),
+    contractId: data.contractId,
+    installmentType: 'amortizacao',
+    installmentNumber: data.applyAtInstallment,
+    paymentDate: data.paymentDate,
+    amount: 0,
+    amortizationAmount: data.amount,
+    paymentType: 'pix',
+    pixKeyId: getActivePixKey(data.contractId)?.id ?? null,
+    receiptUrl: data.receiptUrl ?? null,
+    status: 'pago',
+    notes: '',
+    createdBy: getCurrentUser()?.id ?? 'user-admin',
+    createdAt: nowISO(),
+  }
+  db.payments.push(row)
+  push('payments', row)
+  log('amortizacao_registrada', `Amortização de ${data.amount.toFixed(2)} registrada.`, data.contractId)
+  persist()
+  return row
+}
+
+/** Remove um pagamento/amortização por id (estorno). */
+export function deletePayment(paymentId: string) {
+  const p = db.payments.find((x) => x.id === paymentId)
+  if (!p) return
+  db.payments = db.payments.filter((x) => x.id !== paymentId)
+  pushDelete('payments', paymentId)
+  log('pagamento_estornado', `Lançamento removido: ${p.installmentType} #${p.installmentNumber}.`, p.contractId)
+  persist()
 }
 
 /** Cliente envia comprovante (modo local: guarda data URL). */

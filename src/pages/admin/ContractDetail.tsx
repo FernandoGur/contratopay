@@ -4,7 +4,9 @@ import {
   applyIpcaCorrection,
   getContractCalc,
   getDb,
+  recordAmortization,
   recordPayment,
+  deletePayment,
   setPixKey,
   updateContract,
 } from '@/lib/repo'
@@ -375,10 +377,13 @@ function PagamentosTab({
     (p) => p.status !== 'pago' || p.amount > 0 || p.amortizationAmount > 0,
   )
   // Localiza a linha do cronograma correspondente a um pagamento (para editar).
+  // Amortização avulsa não tem parcela vinculada (só pode ser removida).
   const rowFor = (p: (typeof paid)[number]) =>
-    p.installmentType === 'entrada'
-      ? calc.downRows.find((r) => r.number === p.installmentNumber)
-      : calc.schedule.rows.find((r) => r.number === p.installmentNumber)
+    p.installmentType === 'amortizacao'
+      ? undefined
+      : p.installmentType === 'entrada'
+        ? calc.downRows.find((r) => r.number === p.installmentNumber)
+        : calc.schedule.rows.find((r) => r.number === p.installmentNumber)
   return (
     <Card className="p-0">
       <div className="overflow-x-auto">
@@ -398,7 +403,9 @@ function PagamentosTab({
             {paid.map((p) => (
               <tr key={p.id} className="hover:bg-ink-50/60">
                 <td className="px-4 py-2.5 font-medium text-ink-800">
-                  {p.installmentType === 'entrada' ? 'Entrada' : 'Fin.'} #{p.installmentNumber}
+                  {p.installmentType === 'amortizacao'
+                    ? 'Amortização'
+                    : `${p.installmentType === 'entrada' ? 'Entrada' : 'Fin.'} #${p.installmentNumber}`}
                 </td>
                 <td className="px-4 py-2.5 tnum text-ink-600">{formatDateBR(p.paymentDate)}</td>
                 <td className="px-4 py-2.5 text-right tnum text-ink-900">
@@ -434,14 +441,20 @@ function PagamentosTab({
                   )}
                 </td>
                 <td className="px-4 py-2.5 text-right">
-                  {(() => {
-                    const row = rowFor(p)
-                    return row ? (
-                      <Button size="sm" variant="ghost" onClick={() => onEdit(row)}>
-                        Editar
-                      </Button>
-                    ) : null
-                  })()}
+                  {p.installmentType === 'amortizacao' ? (
+                    <Button size="sm" variant="ghost" onClick={() => deletePayment(p.id)}>
+                      Remover
+                    </Button>
+                  ) : (
+                    (() => {
+                      const row = rowFor(p)
+                      return row ? (
+                        <Button size="sm" variant="ghost" onClick={() => onEdit(row)}>
+                          Editar
+                        </Button>
+                      ) : null
+                    })()
+                  )}
                 </td>
               </tr>
             ))}
@@ -773,19 +786,38 @@ function ReviewReceiptModal({
         })
       })
     } else if (mode === 'amortizar' && isFin) {
-      // Aplica na própria parcela enviada. Se "inclui a parcela do mês", quita a
-      // parcela (amount = valor da parcela) e amortiza o excedente; senão, é só
-      // amortização (amount 0, parcela continua a vencer).
-      recordPayment({
-        contractId: calc.contract.id,
-        installmentType: 'financiamento',
-        installmentNumber: payment.installmentNumber,
-        paymentDate: date,
-        amount: amortIncludesParcela ? parcelaValueFin : 0,
-        amortizationAmount: amortSim?.extra ?? amortAmount,
-        status: 'pago',
-        receiptUrl: payment.receiptUrl,
-      })
+      if (amortIncludesParcela) {
+        // Quita a parcela do mês (registro da parcela) e o excedente vira uma
+        // amortização avulsa (lançamento próprio, sem número de parcela).
+        recordPayment({
+          contractId: calc.contract.id,
+          installmentType: 'financiamento',
+          installmentNumber: payment.installmentNumber,
+          paymentDate: date,
+          amount: parcelaValueFin,
+          status: 'pago',
+          receiptUrl: payment.receiptUrl,
+        })
+        if (amortAmount > 0) {
+          recordAmortization({
+            contractId: calc.contract.id,
+            applyAtInstallment: payment.installmentNumber,
+            amount: amortAmount,
+            paymentDate: date,
+          })
+        }
+      } else {
+        // Só amortização: lançamento avulso (com o comprovante) e remove o
+        // registro original da parcela (ela NÃO é quitada).
+        recordAmortization({
+          contractId: calc.contract.id,
+          applyAtInstallment: openFin[0]?.number ?? payment.installmentNumber,
+          amount: amortAmount,
+          paymentDate: date,
+          receiptUrl: payment.receiptUrl,
+        })
+        deletePayment(payment.id)
+      }
     } else if (mode === 'antecipar' && antSim) {
       const lastK = openFin.slice(-antSim.count)
       const per = r2(antSim.payToday / Math.max(1, lastK.length))
@@ -803,16 +835,7 @@ function ReviewReceiptModal({
       })
       // Se o comprovante foi enviado para uma parcela fora das últimas, remove o
       // lançamento original (foi realocado para a antecipação).
-      if (!inLastK) {
-        recordPayment({
-          contractId: calc.contract.id,
-          installmentType: payment.installmentType,
-          installmentNumber: payment.installmentNumber,
-          paymentDate: date,
-          amount: 0,
-          status: 'pago',
-        })
-      }
+      if (!inLastK) deletePayment(payment.id)
     }
     onClose()
   }

@@ -69,7 +69,10 @@ export interface Contract {
 export interface Payment {
   id: string
   contractId: string
-  installmentType: 'entrada' | 'financiamento'
+  // 'amortizacao' = lançamento de amortização avulso (sem número de parcela);
+  // installmentNumber guarda só o ponto do cronograma onde o abatimento passa a
+  // valer (uso interno do motor; não é exibido como parcela).
+  installmentType: 'entrada' | 'financiamento' | 'amortizacao'
   installmentNumber: number
   paymentDate: ISODate
   amount: number

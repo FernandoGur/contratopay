@@ -411,7 +411,7 @@ function InicioDashboard({
               <div>
                 {recentPayments.map((p) => {
                   const hasAmort = p.amortizationAmount > 0
-                  const onlyAmort = hasAmort && p.amount <= 0
+                  const onlyAmort = p.installmentType === 'amortizacao' || (hasAmort && p.amount <= 0)
                   return (
                     <div key={p.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
                       <div className="flex min-w-0 items-center gap-3">
@@ -422,8 +422,9 @@ function InicioDashboard({
                         </div>
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-ink-800">
-                            {onlyAmort ? 'Amortização' : p.installmentType === 'entrada' ? 'Entrada' : 'Parcela'}{' '}
-                            {p.installmentNumber}
+                            {onlyAmort
+                              ? 'Amortização'
+                              : `${p.installmentType === 'entrada' ? 'Entrada' : 'Parcela'} ${p.installmentNumber}`}
                           </div>
                           <div className="text-xs text-ink-400">
                             pago {formatDateBR(p.paymentDate)}
