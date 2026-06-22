@@ -1478,7 +1478,8 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
           </button>
         </div>
         <div className="mt-1.5 text-xs text-ink-400">
-          Você tem {sim.maxCount} parcelas em aberto.
+          Você tem {sim.maxCount} parcelas em aberto. Toque numa parcela no mapa abaixo para quitar
+          dela até o fim.
         </div>
       </div>
 
@@ -1499,19 +1500,29 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
           {mapRows.map((r) => {
             const isPaid = r.status === 'paga'
             const isQuit = quitSet.has(r.number)
+            // Parcela do financiamento em aberto é clicável: seleciona de trás
+            // pra frente (desta até a última) — mesmo efeito do contador +/-.
+            const clickable = r.type === 'financiamento' && !isPaid
             const cls = isQuit
               ? 'bg-pos-500 text-white scale-110 shadow-sm'
               : isPaid
                 ? 'bg-pos-100 text-pos-700'
                 : 'bg-ink-200 text-ink-400'
+            const selectToHere = () => {
+              const idx = openFin.findIndex((o) => o.number === r.number)
+              if (idx >= 0) setCount(openFin.length - idx)
+            }
             return (
-              <div
+              <button
                 key={`${r.type}-${r.number}`}
-                title={`${r.type === 'entrada' ? 'Entrada' : 'Parcela'} ${r.number} · ${brl(r.value)}`}
-                className={`flex h-7 w-7 items-center justify-center rounded-[6px] text-[10px] font-bold transition-all duration-200 ${cls}`}
+                type="button"
+                disabled={!clickable}
+                onClick={clickable ? selectToHere : undefined}
+                title={`${r.type === 'entrada' ? 'Entrada' : 'Parcela'} ${r.number} · ${brl(r.value)}${clickable ? ' · quitar até aqui' : ''}`}
+                className={`flex h-7 w-7 items-center justify-center rounded-[6px] text-[10px] font-bold transition-all duration-200 ${cls} ${clickable ? 'cursor-pointer hover:ring-2 hover:ring-pos-500/40' : 'cursor-default'}`}
               >
                 {r.number}
-              </div>
+              </button>
             )
           })}
         </div>
