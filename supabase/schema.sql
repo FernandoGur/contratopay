@@ -195,3 +195,25 @@ create policy pix_read on pix_keys for select using (owns_contract(contract_id))
 
 drop policy if exists audit_admin on audit_logs;
 create policy audit_admin on audit_logs for all using (is_admin()) with check (is_admin());
+
+-- ===========================================================================
+-- Web Push — assinaturas de notificação (uma por dispositivo/endpoint).
+-- ===========================================================================
+create table if not exists push_subscriptions (
+  endpoint text primary key,
+  user_email text not null,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now()
+);
+alter table push_subscriptions enable row level security;
+
+-- Cada usuário gerencia só a própria assinatura (pelo e-mail logado).
+drop policy if exists push_self on push_subscriptions;
+create policy push_self on push_subscriptions for all
+  using (lower(user_email) = current_email())
+  with check (lower(user_email) = current_email());
+
+-- Admin pode ver/limpar todas (o envio em si é feito pela service role).
+drop policy if exists push_admin on push_subscriptions;
+create policy push_admin on push_subscriptions for all using (is_admin()) with check (is_admin());

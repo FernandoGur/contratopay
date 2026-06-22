@@ -1,10 +1,12 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getContractCalc, getDb } from '@/lib/repo'
+import { getContractCalc, getCurrentUser, getDb } from '@/lib/repo'
 import { useDb } from '@/lib/store'
 import { brl } from '@/lib/format'
 import { formatDateBR } from '@/lib/dates'
-import { Badge, Card, PageHeader, StatCard } from '@/components/ui'
+import { Badge, Button, Card, PageHeader, StatCard } from '@/components/ui'
+import { PushButton } from '@/components/PushButton'
+import { sendPush } from '@/lib/push'
 
 export function Dashboard() {
   const version = useDb()
@@ -47,6 +49,8 @@ export function Dashboard() {
         title="Painel financeiro"
         subtitle="Visão geral dos seus contratos e recebimentos."
       />
+
+      <AdminPushCard />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Total vendido" value={brl(totalSold)} />
@@ -127,5 +131,44 @@ export function Dashboard() {
         </Card>
       </div>
     </div>
+  )
+}
+
+/** Card de notificações (vendedor): ativa o push e envia um teste para si mesmo. */
+function AdminPushCard() {
+  const email = getCurrentUser()?.email ?? ''
+  const [status, setStatus] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function test() {
+    setStatus(null)
+    setBusy(true)
+    const r = await sendPush(
+      email,
+      'ContratoPay',
+      'Notificação de teste — tudo certo por aqui.',
+      '/admin',
+    )
+    setBusy(false)
+    setStatus(r.ok ? 'Enviado. Deve chegar em instantes.' : `Falhou: ${r.error ?? 'erro'}`)
+  }
+
+  return (
+    <Card className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="font-display text-base font-semibold text-ink-900">Notificações</div>
+        <p className="text-sm text-ink-500">
+          Ative para receber avisos neste dispositivo (PWA instalada). Você pode mandar um teste
+          para si mesmo.
+        </p>
+        {status && <p className="mt-1 text-xs text-ink-500">{status}</p>}
+      </div>
+      <div className="flex items-center gap-2">
+        <PushButton />
+        <Button variant="secondary" onClick={test} disabled={busy || !email}>
+          {busy ? 'Enviando…' : 'Enviar teste'}
+        </Button>
+      </div>
+    </Card>
   )
 }

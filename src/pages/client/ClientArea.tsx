@@ -31,6 +31,7 @@ import {
   Row,
 } from '@/components/ui'
 import { Logo } from '@/components/Logo'
+import { PushButton } from '@/components/PushButton'
 
 type ClientTab = 'inicio' | 'parcelas' | 'pagamentos' | 'simular' | 'previsao' | 'contrato'
 
@@ -2091,6 +2092,16 @@ function ContratoTab({
   const { contract, state, client } = calc
   return (
     <div className="space-y-5">
+      <Card className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-display text-base font-bold text-ink-900">Notificações</h3>
+          <p className="text-sm text-ink-500">
+            Receba avisos do seu contrato (comprovante validado, lembrete de vencimento).
+          </p>
+        </div>
+        <PushButton />
+      </Card>
+
       <Card>
         <h3 className="mb-2 font-display text-base font-bold text-ink-900">Resumo do contrato</h3>
         <Row label="Valor total da compra" value={brl(contract.totalValue)} />

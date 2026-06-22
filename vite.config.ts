@@ -11,8 +11,15 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // SW próprio (src/sw.ts) para tratar Web Push, além do precache do Workbox.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       devOptions: { enabled: false },
       includeAssets: ['favicon.svg', 'favicon.png', 'logo-mark.svg', 'apple-touch-icon.png'],
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+      },
       manifest: {
         name: 'ContratoPay — Gestão Inteligente de Contratos',
         short_name: 'ContratoPay',
@@ -31,14 +38,6 @@ export default defineConfig({
           // O ícone tem fundo gradiente full-bleed, então também serve como maskable.
           { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
-      },
-      workbox: {
-        // App shell offline; navegação cai no index.html (SPA).
-        navigateFallback: '/index.html',
-        // Não intercepta chamadas ao Supabase (sempre rede).
-        navigateFallbackDenylist: [/supabase\.co/],
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        cleanupOutdatedCaches: true,
       },
     }),
   ],
