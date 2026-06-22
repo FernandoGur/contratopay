@@ -32,7 +32,7 @@ type ClientTab = 'inicio' | 'parcelas' | 'pagamentos' | 'simular' | 'previsao' |
 const CLIENT_TABS: { id: ClientTab; label: string }[] = [
   { id: 'inicio', label: 'Início' },
   { id: 'parcelas', label: 'Minhas parcelas' },
-  { id: 'simular', label: 'Pagar a mais' },
+  { id: 'simular', label: 'Antecipar pagamentos' },
   { id: 'previsao', label: 'Previsão' },
   { id: 'contrato', label: 'Meu contrato' },
 ]
@@ -99,23 +99,26 @@ export function ClientArea() {
             )}
           </div>
         </div>
-        {/* Abas roláveis */}
-        <div className="mx-auto max-w-5xl overflow-x-auto px-2">
-          <div className="flex gap-1 pb-1">
+        {/* Abas — roláveis no mobile, com dica de rolagem nas bordas */}
+        <div className="relative">
+          <div className="mx-auto flex max-w-5xl gap-1.5 overflow-x-auto px-3 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {CLIENT_TABS.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`shrink-0 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
+                className={`shrink-0 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
                   tab === t.id
-                    ? 'bg-brand-50 text-brand-700'
-                    : 'text-ink-500 hover:text-ink-800'
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'bg-ink-50 text-ink-600 hover:bg-ink-100'
                 }`}
               >
                 {t.label}
               </button>
             ))}
           </div>
+          {/* Dica de que há mais conteúdo para rolar (só no mobile) */}
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-5 bg-gradient-to-r from-white to-transparent sm:hidden" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent sm:hidden" />
         </div>
       </header>
 
