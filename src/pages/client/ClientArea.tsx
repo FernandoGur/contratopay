@@ -1065,6 +1065,22 @@ function ParcelasTab({
   const paidCount = rows.filter((r) => r.status === 'paga').length
   const openCount = rows.length - paidCount
 
+  // Comprovante vinculado a cada parcela (entrada/financiamento).
+  const receiptByKey: Record<string, string> = {}
+  for (const p of calc.payments) {
+    if (p.receiptUrl && p.installmentType !== 'amortizacao') {
+      receiptByKey[`${p.installmentType}-${p.installmentNumber}`] = p.receiptUrl
+    }
+  }
+  // Extrato de pagamentos (parcelas pagas, entradas e amortizações).
+  const extrato = [...calc.payments]
+    .filter(
+      (p) =>
+        (p.status === 'pago' && (p.amount > 0 || p.amortizationAmount > 0)) ||
+        p.status === 'comprovante_enviado',
+    )
+    .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate))
+
   // Ao abrir a aba (inclusive via "Ver todas"), rola até a última parcela paga.
   const paidRows = rows.filter((r) => r.status === 'paga')
   const lastPaid = paidRows[paidRows.length - 1]
@@ -1204,6 +1220,19 @@ function ParcelasTab({
                       <div className="text-xs text-ink-400">
                         {formatDateBR(r.dueDate)}
                         {r.amortization ? ' · com pagamento extra' : ''}
+                        {receiptByKey[`${r.type}-${r.number}`] && (
+                          <>
+                            {' · '}
+                            <a
+                              href={receiptByKey[`${r.type}-${r.number}`]}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-medium text-brand-600 hover:underline"
+                            >
+                              comprovante
+                            </a>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -1241,6 +1270,62 @@ function ParcelasTab({
           })}
         </div>
       </Card>
+
+      {extrato.length > 0 && (
+        <Card className="p-0">
+          <div className="border-b border-ink-100 px-5 py-3.5">
+            <h3 className="font-display text-base font-semibold text-ink-900">Extrato de pagamentos</h3>
+          </div>
+          <div className="divide-y divide-ink-100">
+            {extrato.map((p) => {
+              const isAmort = p.installmentType === 'amortizacao'
+              const title = isAmort
+                ? 'Amortização'
+                : `${p.installmentType === 'entrada' ? 'Entrada' : 'Parcela'} ${p.installmentNumber}`
+              const pending = p.status === 'comprovante_enviado'
+              return (
+                <div key={p.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-ink-800">{title}</div>
+                    <div className="text-xs text-ink-400">
+                      {formatDateBR(p.paymentDate)}
+                      {p.amortizationAmount > 0 && !isAmort
+                        ? ` · amortização ${brl(p.amortizationAmount)}`
+                        : ''}
+                      {p.receiptUrl && (
+                        <>
+                          {' · '}
+                          <a
+                            href={p.receiptUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium text-brand-600 hover:underline"
+                          >
+                            comprovante
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="num-display text-sm font-semibold text-ink-800">
+                      {brl(p.amount + p.amortizationAmount)}
+                    </div>
+                    <div
+                      className={`text-[11px] font-medium ${
+                        pending ? 'text-warn-700' : isAmort ? 'text-brand-600' : 'text-pos-600'
+                      }`}
+                    >
+                      {pending ? 'Em análise' : isAmort ? 'Amortização' : 'Pago'}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      )}
+
       <p className="text-center text-xs text-ink-400">
         O saldo devedor e as parcelas futuras são estimativas e podem mudar com a correção anual do IPCA.
       </p>
