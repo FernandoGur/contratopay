@@ -491,6 +491,32 @@ function ReceiptThumb({ url }: { url: string }) {
   )
 }
 
+/** Tipo da chave Pix a partir do formato (para o rótulo). */
+function pixKeyType(key: string): string {
+  if (/@/.test(key)) return 'e-mail'
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key.trim())) return 'aleatória'
+  const digits = key.replace(/\D/g, '')
+  if (key.trim().startsWith('+') || digits.length === 13) return 'telefone'
+  if (digits.length === 14) return 'CNPJ'
+  if (digits.length === 11) return 'CPF'
+  return 'chave'
+}
+
+/** "2026-07-15" → "em 23 dias" / "hoje" / "há 2 dias" (relativo a hoje). */
+function dueRelative(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-').map(Number)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const due = new Date(y, m - 1, d)
+  const diff = Math.round((due.getTime() - today.getTime()) / 86_400_000)
+  if (diff > 1) return `em ${diff} dias`
+  if (diff === 1) return 'amanhã'
+  if (diff === 0) return 'hoje'
+  if (diff === -1) return 'há 1 dia'
+  return `há ${-diff} dias`
+}
+
 function PixBlock({
   calc,
   pix,
@@ -500,11 +526,13 @@ function PixBlock({
 }) {
   const { state, contract } = calc
   const [copied, setCopied] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Considera placeholder/teste quando não há chave ou termina em "@local".
   const hasRealPix = !!pix?.pixKey && !pix.pixKey.toLowerCase().endsWith('@local')
   const nextRow = calc.schedule.rows.find((r) => r.number === state.nextInstallmentNumber)
+  const dueLabel = dueRelative(state.nextInstallmentDueDate)
 
   // Comprovante já enviado (aguardando validação) da parcela atual.
   const submittedReceipt = calc.payments.find(
@@ -524,14 +552,12 @@ function PixBlock({
     setTimeout(() => setCopied(false), 2000)
   }
 
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
+  function handleFile(file: File | undefined | null) {
     if (!file || !state.nextInstallmentNumber) return
     const reader = new FileReader()
     reader.onload = () => {
       submitReceipt(contract.id, 'financiamento', state.nextInstallmentNumber!, String(reader.result))
     }
-    e.target.value = '' // permite reenviar o mesmo arquivo (trocar)
     reader.readAsDataURL(file)
   }
 
@@ -546,13 +572,16 @@ function PixBlock({
 
   return (
     <Card className="overflow-hidden p-0">
-      {/* Faixa de valor — índigo discreto */}
-      <div className="bg-brand-gradient px-5 py-5 text-white">
-        <div className="flex items-center justify-between gap-2">
+      <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = '' }} />
+
+      {/* Faixa de valor */}
+      <div className="bg-brand-gradient px-5 py-5 text-white sm:px-6">
+        <div className="flex items-start justify-between gap-2">
           <span className="text-sm font-medium text-white/85">Valor a pagar agora</span>
           {nextRow && (
-            <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-white">
+            <span className="shrink-0 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white">
               {INSTALLMENT_STATUS_LABEL[nextRow.status]}
+              {dueLabel ? ` · ${dueLabel}` : ''}
             </span>
           )}
         </div>
@@ -564,40 +593,70 @@ function PixBlock({
         </div>
       </div>
 
-      {/* Corpo compacto: Pix + comprovante lado a lado no desktop */}
-      <div className="grid gap-4 p-5 sm:grid-cols-2">
-        <div>
-          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Chave Pix</div>
-          <div className="flex items-center gap-2">
-            <div
-              className={`tnum min-w-0 flex-1 truncate rounded-[10px] bg-ink-50 px-3 py-2.5 text-sm ${hasRealPix ? 'text-ink-900' : 'italic text-ink-400'}`}
-            >
-              {hasRealPix ? pix!.pixKey : 'Chave Pix ainda não informada'}
+      {/* Duas colunas: pague via Pix · comprovante */}
+      <div className="grid sm:grid-cols-2 sm:divide-x sm:divide-ink-100">
+        {/* Pague via Pix */}
+        <div className="p-5 sm:p-6">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Pague via Pix</div>
+
+          <div className="mt-2 overflow-hidden rounded-xl border border-ink-200">
+            <div className="flex items-center justify-between gap-3 p-3">
+              <div className="min-w-0">
+                <div className="text-[11px] text-ink-400">
+                  Chave Pix{hasRealPix ? ` (${pixKeyType(pix!.pixKey)})` : ''}
+                </div>
+                <div className={`tnum truncate text-[15px] font-semibold ${hasRealPix ? 'text-ink-900' : 'italic text-ink-400'}`}>
+                  {hasRealPix ? pix!.pixKey : 'não informada'}
+                </div>
+              </div>
+              <Button onClick={copy} disabled={!hasRealPix} aria-label="Copiar chave Pix" className="shrink-0">
+                <span className="inline-flex items-center gap-1.5">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                  {copied ? 'Copiado!' : 'Copiar chave'}
+                </span>
+              </Button>
             </div>
-            <Button
-              onClick={copy}
-              disabled={!hasRealPix}
-              aria-label="Copiar chave Pix"
-              className="w-[6.5rem] shrink-0"
-            >
-              {copied ? 'Copiado!' : 'Copiar'}
-            </Button>
+            {hasRealPix && (
+              <div className="flex items-center gap-2.5 border-t border-ink-100 bg-ink-50/60 p-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
+                  <svg viewBox="0 0 24 24" className="h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18M5 21V8l7-4 7 4v13M9 21v-4h6v4" /></svg>
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-ink-900">{pix!.receiverName}</div>
+                  {pix!.bankName && <div className="truncate text-xs text-ink-500">{pix!.bankName}</div>}
+                </div>
+              </div>
+            )}
           </div>
-          {hasRealPix ? (
-            <p className="mt-1.5 text-xs text-ink-500">
-              {pix!.receiverName}
-              {pix!.bankName ? ` · ${pix!.bankName}` : ''}
-            </p>
-          ) : (
-            <p className="mt-1.5 text-xs text-ink-400">O vendedor ainda vai cadastrar a chave Pix.</p>
+
+          {!hasRealPix && (
+            <p className="mt-2 text-xs text-ink-400">O vendedor ainda vai cadastrar a chave Pix.</p>
           )}
+
+          <div className="mt-5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Como pagar</div>
+          <ol className="mt-2.5 space-y-3">
+            {[
+              { t: 'Copie a chave Pix', d: 'Use o botão acima para copiar o recebedor.' },
+              { t: 'Pague no app do seu banco', d: `Pix → Pagar com chave → cole e confirme ${brl(state.currentInstallmentValue)}.` },
+              { t: 'Envie o comprovante', d: 'Anexe ao lado para o vendedor confirmar.' },
+            ].map((s, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[11px] font-bold text-brand-700">{i + 1}</span>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-ink-800">{s.t}</div>
+                  <div className="text-xs text-ink-500">{s.d}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
         </div>
 
-        <div>
-          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Comprovante</div>
-          <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={onFile} />
+        {/* Comprovante */}
+        <div className="p-5 sm:p-6">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Comprovante</div>
+
           {receiptUrl ? (
-            <>
+            <div className="mt-2">
               <div className="flex items-center gap-3 rounded-xl border border-pos-500/30 bg-pos-50 p-2.5">
                 <button
                   type="button"
@@ -608,10 +667,7 @@ function PixBlock({
                   {receiptIsImage ? (
                     <img src={receiptUrl} alt="Comprovante" className="h-full w-full object-cover" />
                   ) : (
-                    <svg viewBox="0 0 24 24" className="h-6 w-6 text-pos-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <path d="M14 2v6h6" />
-                    </svg>
+                    <svg viewBox="0 0 24 24" className="h-6 w-6 text-pos-600" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
                   )}
                 </button>
                 <div className="min-w-0 flex-1">
@@ -622,34 +678,35 @@ function PixBlock({
                   <div className="text-xs text-ink-500">Em análise pelo vendedor.</div>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
-                  <button type="button" onClick={() => openReceipt(receiptUrl)} className="text-xs font-semibold text-brand-600 hover:underline">
-                    Ver
-                  </button>
-                  <button type="button" onClick={() => fileRef.current?.click()} className="text-xs font-semibold text-brand-600 hover:underline">
-                    Trocar
-                  </button>
+                  <button type="button" onClick={() => openReceipt(receiptUrl)} className="text-xs font-semibold text-brand-600 hover:underline">Ver</button>
+                  <button type="button" onClick={() => fileRef.current?.click()} className="text-xs font-semibold text-brand-600 hover:underline">Trocar</button>
                 </div>
               </div>
-              <p className="mt-1.5 text-xs text-ink-400">Pode trocar o comprovante enquanto não for confirmado.</p>
-            </>
+              <p className="mt-2 text-xs text-ink-400">Pode trocar o comprovante enquanto não for confirmado.</p>
+            </div>
           ) : (
             <>
-              <Button
-                variant="secondary"
-                className="w-full"
+              <div
                 onClick={() => fileRef.current?.click()}
-                aria-label="Enviar comprovante de pagamento"
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files?.[0]) }}
+                className={`mt-2 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors ${dragOver ? 'border-brand-400 bg-brand-50' : 'border-ink-300 hover:bg-ink-50'}`}
               >
-                <span className="inline-flex items-center gap-2">
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <path d="m7 10 5 5 5-5" />
-                    <path d="M12 15V3" />
-                  </svg>
-                  Enviar comprovante
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600">
+                  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /><path d="M12 15V3" /></svg>
+                </div>
+                <div className="mt-3 text-base font-semibold text-ink-900">Enviar comprovante</div>
+                <p className="mt-1 text-sm text-ink-500">Arraste o arquivo aqui ou clique para selecionar.</p>
+                <p className="text-xs text-ink-400">PDF ou imagem, até 10 MB.</p>
+                <span className="mt-4 inline-flex rounded-lg border border-ink-200 px-4 py-2 text-sm font-semibold text-ink-700">
+                  Selecionar arquivo
                 </span>
-              </Button>
-              <p className="mt-1.5 text-xs text-ink-400">Após o pagamento, envie para conferência.</p>
+              </div>
+              <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-ink-400">
+                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
+                Confirmação em até 1 dia útil após o envio.
+              </p>
             </>
           )}
         </div>
