@@ -1874,10 +1874,6 @@ function ParcelasTab({
           </div>
         </Card>
       )}
-
-      <p className="text-center text-xs text-ink-400">
-        O saldo devedor e as parcelas futuras são estimativas e podem mudar com a correção anual do IPCA.
-      </p>
     </div>
   )
 }
