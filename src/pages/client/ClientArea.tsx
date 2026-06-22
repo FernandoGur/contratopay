@@ -88,9 +88,12 @@ export function ClientArea() {
   // Deslogado não fica preso: manda para o login.
   if (!user) return <Navigate to="/" replace />
 
-  // O cliente não vê o id do contrato na URL — usa sempre /cliente (o app
-  // resolve o contrato dele pelo login). O id só serve ao preview do admin.
-  if (user.role === 'cliente' && params.id) return <Navigate to="/cliente" replace />
+  // Cliente com UM contrato não vê o id na URL — usa /cliente limpo (o app
+  // resolve pelo login). Se tiver vários, mantém o id para não bloquear o acesso
+  // aos demais (até existir um seletor de contratos). O id só persiste assim.
+  const myContracts = getDb().contracts.filter((c) => c.clientId === user.clientId)
+  if (user.role === 'cliente' && params.id && myContracts.length <= 1)
+    return <Navigate to="/cliente" replace />
 
   if (!calc) {
     return (
@@ -107,6 +110,28 @@ export function ClientArea() {
   }
 
   const { contract, client } = calc
+
+  // Contrato cancelado: bloqueia o painel (pagar/simular/comprovante não fazem
+  // sentido). Antes o status era ignorado e o cliente seguia operando normal.
+  if (contract.status === 'cancelado') {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-neg-50 text-neg-700">
+          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6M9 9l6 6" /></svg>
+        </div>
+        <div>
+          <h2 className="font-display text-lg font-semibold text-ink-900">Contrato cancelado</h2>
+          <p className="mt-1 max-w-sm text-sm text-ink-500">
+            Este contrato foi cancelado. Fale com o vendedor para mais informações.
+          </p>
+        </div>
+        <button onClick={handleLogout} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+          Sair
+        </button>
+      </div>
+    )
+  }
+
   const pix = getActivePixKey(contract.id)
   const clientInitials = (client?.name ?? 'Cliente')
     .split(' ')

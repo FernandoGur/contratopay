@@ -16,7 +16,6 @@ import { formatDateBR, formatMonthBR, todayISO } from '@/lib/dates'
 import { openReceipt } from '@/lib/receipt'
 import { parseReceiptNotes } from '@/lib/requests'
 import {
-  openBalanceAfter,
   projectOpenCorrections,
   simulateAnticipateLast,
   simulateExtraPayment,
@@ -342,7 +341,9 @@ function CronogramaTab({
                 <td className="px-4 py-2.5 tnum text-ink-600">{formatDateBR(r.dueDate)}</td>
                 <td className="px-4 py-2.5 text-right tnum font-medium text-ink-900">{brl(r.value)}</td>
                 <td className="px-4 py-2.5 text-right tnum text-ink-500">
-                  {r.type === 'financiamento' ? brl(openBalanceAfter(calc.schedule.rows, r)) : '—'}
+                  {/* Cronograma = tabela do PLANO: saldo planejado da linha (não o
+                      saldo em aberto, que é conceito do cliente e achatava parcelas pagas). */}
+                  {r.type === 'financiamento' ? brl(r.balanceAfter) : '—'}
                 </td>
                 <td className="px-4 py-2.5">
                   <Badge tone={INSTALLMENT_STATUS_TONE[r.status]}>
