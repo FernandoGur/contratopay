@@ -2040,7 +2040,13 @@ function SaldoDevedorChart({
   }))
   bars.push({ label: 'Fim', value: 0 })
   const max = Math.max(...bars.map((b) => b.value), 1)
-  const kFmt = (v: number) => (v <= 0 ? 'quitado' : v < 1000 ? brl(v) : `${Math.round(v / 1000)} mil`)
+  // 1 casa decimal em "mil" para não arredondar demais (332.500 → "332,5 mil").
+  const kFmt = (v: number) =>
+    v <= 0
+      ? 'quitado'
+      : v < 1000
+        ? brl(v)
+        : `${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`
 
   return (
     <Card>

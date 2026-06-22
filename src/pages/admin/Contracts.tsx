@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { createContract, getContractCalc, getDb } from '@/lib/repo'
 import { useDb } from '@/lib/store'
 import { brl } from '@/lib/format'
-import { formatDateBR } from '@/lib/dates'
+import { addMonths, formatDateBR } from '@/lib/dates'
 import type { ContractStatus } from '@/lib/types'
 import {
   Badge,
@@ -100,8 +100,8 @@ function NewContractModal({ open, onClose }: { open: boolean; onClose: () => voi
     downPaymentStartDate: '2026-07-01',
     financingInstallments: '60',
     financingStartDate: '2026-07-01',
-    // Base de correção = 1ª parcela: o 1º reajuste cai 12 meses depois (dia 01).
-    correctionBaseDate: '2026-07-01',
+    // Data do 1º reajuste (12 meses após a 1ª parcela).
+    firstReajuste: '2027-07-01',
     forecastAnnualIpca: '5',
   })
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -138,7 +138,7 @@ function NewContractModal({ open, onClose }: { open: boolean; onClose: () => voi
       financingInstallments: finInstallments,
       financingStartDate: form.financingStartDate,
       correctionType: 'ipca_anual',
-      correctionBaseDate: form.correctionBaseDate,
+      correctionBaseDate: addMonths(form.firstReajuste, -12),
       correctionFrequencyMonths: 12,
       status: 'ativo',
       internalNotes: '',
@@ -191,8 +191,8 @@ function NewContractModal({ open, onClose }: { open: boolean; onClose: () => voi
             <Field label="1ª parcela do financiamento (vencimento)">
               <Input type="date" value={form.financingStartDate} onChange={set('financingStartDate')} />
             </Field>
-            <Field label="Data-base da correção IPCA">
-              <Input type="date" value={form.correctionBaseDate} onChange={set('correctionBaseDate')} />
+            <Field label="Data do 1º reajuste (IPCA)" hint="12 meses após a 1ª parcela.">
+              <Input type="date" value={form.firstReajuste} onChange={set('firstReajuste')} />
             </Field>
             <Field label="IPCA previsto (% ao ano)" hint="Usado nas simulações.">
               <Input value={form.forecastAnnualIpca} onChange={set('forecastAnnualIpca')} />

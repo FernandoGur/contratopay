@@ -12,7 +12,7 @@ import {
 } from '@/lib/repo'
 import { useDb } from '@/lib/store'
 import { brl, pct } from '@/lib/format'
-import { formatDateBR, formatMonthBR, ipcaApuracao, todayISO } from '@/lib/dates'
+import { addMonths, formatDateBR, formatMonthBR, ipcaApuracao, todayISO } from '@/lib/dates'
 import { openReceipt } from '@/lib/receipt'
 import { parseReceiptNotes } from '@/lib/requests'
 import {
@@ -190,7 +190,9 @@ function EditContractModal({
   const [status, setStatus] = useState(c.status)
   const [ipcaText, setIpcaText] = useState(String((c.forecastAnnualIpca * 100).toString().replace('.', ',')))
   const [firstDue, setFirstDue] = useState(c.firstInstallmentDueDate ?? c.financingStartDate)
-  const [corrBase, setCorrBase] = useState(c.correctionBaseDate)
+  // Campo intuitivo: a DATA do 1º reajuste. Internamente vira correctionBaseDate
+  // (= 1º reajuste − 12 meses), pois o motor reajusta 12 meses após a base.
+  const [firstReajuste, setFirstReajuste] = useState(addMonths(c.correctionBaseDate, 12))
   const [clientNotes, setClientNotes] = useState(c.clientNotes)
   const [internalNotes, setInternalNotes] = useState(c.internalNotes)
 
@@ -203,7 +205,7 @@ function EditContractModal({
       // 1ª parcela define a cadência (todas as parcelas a partir dela, mesmo dia).
       financingStartDate: firstDue,
       firstInstallmentDueDate: firstDue,
-      correctionBaseDate: corrBase,
+      correctionBaseDate: addMonths(firstReajuste, -12),
       clientNotes,
       internalNotes,
     })
@@ -233,8 +235,8 @@ function EditContractModal({
         <Field label="1ª parcela do financiamento" hint="Define o dia de vencimento de todas as parcelas.">
           <Input type="date" value={firstDue} onChange={(e) => setFirstDue(e.target.value)} />
         </Field>
-        <Field label="Data-base da correção (IPCA)" hint="1º reajuste 12 meses depois.">
-          <Input type="date" value={corrBase} onChange={(e) => setCorrBase(e.target.value)} />
+        <Field label="Data do 1º reajuste (IPCA)" hint="A 1ª correção cai nesta data; depois, a cada 12 meses.">
+          <Input type="date" value={firstReajuste} onChange={(e) => setFirstReajuste(e.target.value)} />
         </Field>
         <div className="sm:col-span-2">
           <Field label="Observações visíveis ao cliente">
