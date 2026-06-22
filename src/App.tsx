@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { useCurrentUser, useReady } from '@/lib/store'
+import { useCurrentUser, useReady, useSyncError } from '@/lib/store'
+import { clearSyncError } from '@/lib/repo'
 import { LogoMark } from '@/components/Logo'
 import { ReceiptModal } from '@/components/ReceiptModal'
 import { AdminLayout } from '@/components/AdminLayout'
@@ -21,6 +22,26 @@ function Home() {
   const user = useCurrentUser()
   if (!user) return <Login />
   return <Navigate to={user.role === 'admin' ? '/admin' : '/cliente'} replace />
+}
+
+/** Aviso fixo quando uma alteração não foi sincronizada com o servidor. */
+function SyncErrorBanner() {
+  const err = useSyncError()
+  if (!err) return null
+  return (
+    <div className="fixed inset-x-0 top-0 z-[70] flex items-center justify-center gap-3 bg-neg-700 px-4 py-2 text-center text-sm font-medium text-white">
+      <span>{err}</span>
+      <button
+        onClick={() => window.location.reload()}
+        className="rounded-md bg-white/20 px-2.5 py-1 text-xs font-semibold hover:bg-white/30"
+      >
+        Recarregar
+      </button>
+      <button onClick={clearSyncError} aria-label="Dispensar" className="text-white/80 hover:text-white">
+        ✕
+      </button>
+    </div>
+  )
 }
 
 function LoadingScreen() {
@@ -52,6 +73,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <ReceiptModal />
+      <SyncErrorBanner />
     </BrowserRouter>
   )
 }

@@ -124,13 +124,13 @@ export function generateSchedule(
   const rows: ScheduleRow[] = []
   const corrections: CorrectionEvent[] = []
 
+  // Âncora da cadência: se a 1ª parcela tem vencimento próprio, TODAS seguem a
+  // partir dele (mensalmente). Usar financingStartDate só para as demais deixava
+  // os vencimentos fora de ordem quando o 1º vencimento diferia da cadência.
+  const cadenceAnchor = contract.firstInstallmentDueDate ?? contract.financingStartDate
   for (let i = 0; i < nFin; i++) {
     const number = firstNumber + i
-    // 1ª parcela pode ter vencimento próprio; as demais seguem a cadência mensal.
-    const dueDate =
-      i === 0 && contract.firstInstallmentDueDate
-        ? contract.firstInstallmentDueDate
-        : addMonths(contract.financingStartDate, i)
+    const dueDate = addMonths(cadenceAnchor, i)
 
     // 1) Correção anual, se vencer nesta data (ou antes dela).
     let correctionForRow: ScheduleRow['correction']

@@ -135,18 +135,36 @@ const uid = (prefix: string) =>
 
 const nowISO = () => new Date().toISOString()
 
-/** Write-through para o Supabase (fire-and-forget, registra erro). */
-function push(ent: Entity, row: unknown) {
-  if (!useSupabase) return
-  upsertRow(ent, row as Record<string, unknown>).catch((e) =>
-    console.error('[sync] upsert falhou', ent, e),
-  )
+// Sinal de erro de sincronização: quando um write-through falha, a alteração
+// local diverge do servidor (e será descartada no próximo boot). Em vez de
+// falhar em silêncio, expomos isso para a UI avisar o usuário.
+let syncError: string | null = null
+export function getSyncError(): string | null {
+  return syncError
+}
+export function clearSyncError() {
+  if (syncError === null) return
+  syncError = null
+  version++
+  listeners.forEach((l) => l())
+}
+function flagSyncError(e: unknown) {
+  console.error('[sync]', e)
+  syncError = 'Algumas alterações não foram salvas no servidor. Recarregue a página para sincronizar.'
+  version++
+  listeners.forEach((l) => l())
 }
 
-/** Remoção espelhada no Supabase (fire-and-forget). */
+/** Write-through para o Supabase (fire-and-forget; sinaliza falha à UI). */
+function push(ent: Entity, row: unknown) {
+  if (!useSupabase) return
+  upsertRow(ent, row as Record<string, unknown>).catch(flagSyncError)
+}
+
+/** Remoção espelhada no Supabase (fire-and-forget; sinaliza falha à UI). */
 function pushDelete(ent: Entity, id: string) {
   if (!useSupabase) return
-  deleteRow(ent, id).catch((e) => console.error('[sync] delete falhou', ent, e))
+  deleteRow(ent, id).catch(flagSyncError)
 }
 
 function log(action: string, description: string, contractId: string | null) {
