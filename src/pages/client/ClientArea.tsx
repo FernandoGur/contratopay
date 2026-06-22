@@ -564,24 +564,21 @@ function formatDateLong(iso: string | null | undefined) {
 }
 
 /** Mini-preview clicável do comprovante (imagem ou ícone de documento). */
+/** Chip elegante "Comprovante" (abre o modal). Substitui a miniatura quadrada. */
 function ReceiptThumb({ url }: { url: string }) {
-  const isImg = /^data:image|\.(png|jpe?g|webp|gif)(\?|$)/i.test(url)
   return (
     <button
       type="button"
       onClick={() => openReceipt(url)}
       aria-label="Ver comprovante"
       title="Ver comprovante"
-      className="ml-2 inline-flex h-5 w-5 shrink-0 translate-y-[3px] items-center justify-center overflow-hidden rounded-[5px] border border-ink-200 bg-white align-top transition-shadow hover:ring-2 hover:ring-brand-200"
+      className="ml-2 inline-flex translate-y-[1px] items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 align-middle text-[10px] font-semibold text-brand-700 ring-1 ring-inset ring-brand-100 transition-colors hover:bg-brand-100"
     >
-      {isImg ? (
-        <img src={url} alt="" className="h-full w-full object-cover" />
-      ) : (
-        <svg viewBox="0 0 24 24" className="h-3 w-3 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <path d="M14 2v6h6" />
-        </svg>
-      )}
+      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+      Comprovante
     </button>
   )
 }

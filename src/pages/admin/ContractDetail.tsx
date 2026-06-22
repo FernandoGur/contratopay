@@ -970,7 +970,7 @@ function ReviewReceiptModal({
             <div className="flex gap-1.5">
               {tab('parcela', 'Quitar parcela(s)')}
               {isFin && openFin.length > 0 && tab('amortizar', 'Amortizar')}
-              {isFin && openFin.length > 1 && tab('antecipar', 'Antecipar fim')}
+              {isFin && (openFin.length > 1 || mode === 'antecipar') && tab('antecipar', 'Antecipar fim')}
             </div>
           </div>
 

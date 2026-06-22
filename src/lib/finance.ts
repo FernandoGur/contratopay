@@ -619,20 +619,22 @@ export interface YearBlock {
 }
 
 /**
- * Saldo devedor REAL em aberto depois de uma parcela, ciente de antecipações.
+ * Saldo devedor REAL em aberto depois de uma parcela, ciente de antecipações
+ * E de amortizações aplicadas nesta própria parcela.
  *
- * O cronograma pressupõe pagamento sequencial, então `balanceAfter` de cada
- * linha conta TODAS as parcelas seguintes — inclusive as que o cliente já
- * quitou antecipadamente (as últimas). Aqui contamos só as parcelas que ainda
- * estão EM ABERTO depois desta. Pela identidade do modelo (saldo = nº de
- * parcelas restantes × valor da parcela do período), o saldo em aberto é
- * (parcelas abertas depois desta) × valor desta parcela.
+ * `row.balanceAfter` já embute o que foi amortizado nesta parcela, mas conta
+ * TODAS as parcelas seguintes — inclusive as antecipadas (quitadas fora de
+ * ordem). Escalamos esse saldo pela fração que continua EM ABERTO: como
+ * balanceAfter = (slots após esta) × principal, o saldo em aberto é
+ * (abertas após esta / slots após esta) × balanceAfter. Assim, amortização na
+ * própria parcela e antecipação no fim são ambas refletidas corretamente.
  */
 export function openBalanceAfter(rows: ScheduleRow[], row: ScheduleRow): number {
-  const openAfter = rows.filter(
-    (r) => r.type === row.type && r.number > row.number && r.status !== 'paga',
-  ).length
-  return round2(openAfter * row.value)
+  const after = rows.filter((r) => r.type === row.type && r.number > row.number)
+  const slotsAfter = after.length
+  if (slotsAfter === 0) return 0
+  const openAfter = after.filter((r) => r.status !== 'paga').length
+  return round2((openAfter / slotsAfter) * row.balanceAfter)
 }
 
 /** Há alguma parcela em aberto ANTES desta (do mesmo tipo)? Indica que esta foi
