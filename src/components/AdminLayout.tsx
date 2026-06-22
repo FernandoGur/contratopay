@@ -69,7 +69,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       {/* Sidebar desktop */}
       <aside className="hidden w-64 shrink-0 border-r border-ink-200 bg-white p-3.5 lg:flex lg:flex-col">
         <div className="flex items-center gap-2 px-2 py-1.5">
-          <LogoMark className="h-8 w-8" />
+          <LogoMark className="h-8 w-auto" />
           <Wordmark size="sm" />
         </div>
 
@@ -106,7 +106,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       {/* Topbar mobile */}
       <header className="flex items-center justify-between border-b border-ink-200 bg-white px-4 py-3 lg:hidden">
         <div className="flex items-center gap-2">
-          <LogoMark className="h-8 w-8" />
+          <LogoMark className="h-8 w-auto" />
           <Wordmark size="sm" />
         </div>
         <button onClick={() => setOpen((v) => !v)} className="rounded-md p-2 text-ink-600 hover:bg-ink-100">

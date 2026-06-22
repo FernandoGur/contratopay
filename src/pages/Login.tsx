@@ -39,11 +39,11 @@ export function Login() {
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="mb-7 flex flex-col items-center text-center">
-          <LogoMark className="h-14 w-14" />
-          <div className="mt-3">
+          <LogoMark className="h-14 w-auto" />
+          <div className="mt-1">
             <Wordmark size="lg" />
           </div>
-          <p className="mt-1 text-sm text-ink-500">Gestão Inteligente de Contratos</p>
+          <p className="mt-0.5 text-sm text-ink-500">Gestão Inteligente de Contratos</p>
         </div>
 
         <div className="card p-6">

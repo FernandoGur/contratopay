@@ -151,7 +151,7 @@ export function ClientArea() {
             aria-label="Voltar para a Início"
             className="-m-1 cursor-pointer rounded-lg p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-300"
           >
-            <Logo subtitle="Gestão Inteligente de Contratos" markClassName="h-11 w-11" size="lg" />
+            <Logo subtitle="Gestão Inteligente de Contratos" markClassName="h-11 w-auto" size="lg" />
           </button>
 
           {/* Avatar do cliente + sair */}
@@ -646,6 +646,21 @@ function formatSentTime(iso: string): string {
   d0.setHours(0, 0, 0, 0)
   if (d0.getTime() === t0.getTime()) return `hoje ${hh}:${mm}`
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${hh}:${mm}`
+}
+
+/** Máscara de porcentagem com vírgula decimal: 0–100, até 2 casas. */
+function maskPercent(raw: string): string {
+  const s = raw.replace(/[^\d,]/g, '')
+  const firstComma = s.indexOf(',')
+  let out = s
+  if (firstComma >= 0) {
+    const intp = s.slice(0, firstComma)
+    const dec = s.slice(firstComma + 1).replace(/,/g, '').slice(0, 2)
+    out = `${intp},${dec}`
+  }
+  const v = parseFloat(out.replace(',', '.'))
+  if (!Number.isNaN(v) && v > 100) return '100'
+  return out
 }
 
 const MAX_RECEIPT_MB = 10
@@ -1942,9 +1957,10 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
               inputMode="decimal"
               value={customText}
               onChange={(e) => {
-                setCustomText(e.target.value)
-                const v = parseFloat(e.target.value.replace(',', '.'))
-                if (!Number.isNaN(v) && v >= 0 && v <= 50) setForecast(v / 100)
+                const masked = maskPercent(e.target.value)
+                setCustomText(masked)
+                const v = parseFloat(masked.replace(',', '.'))
+                if (!Number.isNaN(v)) setForecast(Math.min(Math.max(v, 0), 100) / 100)
               }}
               placeholder="outro"
               className="tnum w-14 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none"

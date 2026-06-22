@@ -47,7 +47,7 @@ function SyncErrorBanner() {
 function LoadingScreen() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-3">
-      <LogoMark className="h-12 w-12 animate-pulse" />
+      <LogoMark className="h-12 w-auto animate-pulse" />
       <p className="text-sm text-ink-400">Carregando…</p>
     </div>
   )
