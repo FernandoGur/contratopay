@@ -1278,7 +1278,8 @@ function ParcelasTab({
           </div>
           <div className="divide-y divide-ink-100">
             {extrato.map((p) => {
-              const isAmort = p.installmentType === 'amortizacao'
+              const isAmort =
+                p.installmentType === 'amortizacao' || (p.amount <= 0 && p.amortizationAmount > 0)
               const title = isAmort
                 ? 'Amortização'
                 : `${p.installmentType === 'entrada' ? 'Entrada' : 'Parcela'} ${p.installmentNumber}`

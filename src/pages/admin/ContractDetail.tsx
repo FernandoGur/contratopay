@@ -403,7 +403,7 @@ function PagamentosTab({
             {paid.map((p) => (
               <tr key={p.id} className="hover:bg-ink-50/60">
                 <td className="px-4 py-2.5 font-medium text-ink-800">
-                  {p.installmentType === 'amortizacao'
+                  {p.installmentType === 'amortizacao' || (p.amount <= 0 && p.amortizationAmount > 0)
                     ? 'Amortização'
                     : `${p.installmentType === 'entrada' ? 'Entrada' : 'Fin.'} #${p.installmentNumber}`}
                 </td>
@@ -671,15 +671,28 @@ function PaymentModal({
   const total = amount + (isFin ? amort : 0)
 
   function save() {
-    recordPayment({
-      contractId: calc.contract.id,
-      installmentType: row.type,
-      installmentNumber: row.number,
-      paymentDate: date,
-      amount,
-      amortizationAmount: isFin ? Math.min(amort, maxAmort) : 0,
-      status: 'pago',
-    })
+    const am = isFin ? Math.min(amort, maxAmort) : 0
+    // Amortização PURA (sem pagar a parcela) vira lançamento avulso, não fica
+    // presa à parcela do mês.
+    if (amount <= 0 && am > 0) {
+      recordAmortization({
+        contractId: calc.contract.id,
+        applyAtInstallment: row.number,
+        amount: am,
+        paymentDate: date,
+      })
+      if (existing) deletePayment(existing.id)
+    } else {
+      recordPayment({
+        contractId: calc.contract.id,
+        installmentType: row.type,
+        installmentNumber: row.number,
+        paymentDate: date,
+        amount,
+        amortizationAmount: am,
+        status: 'pago',
+      })
+    }
     onClose()
   }
 
