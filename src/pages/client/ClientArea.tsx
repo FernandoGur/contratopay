@@ -45,6 +45,7 @@ export function ClientArea() {
   const calc = useResolvedContract(params.id, user?.clientId)
   const [tab, setTab] = useState<ClientTab>('inicio')
   const [simMode, setSimMode] = useState<'reduzir' | 'antecipar'>('reduzir')
+  const [parcelasFilter, setParcelasFilter] = useState<Filter>('todas')
 
   if (!calc) {
     return (
@@ -129,7 +130,10 @@ export function ClientArea() {
             calc={calc}
             pix={pix}
             onSimular={() => setTab('simular')}
-            onVerParcelas={() => setTab('parcelas')}
+            onVerParcelas={(f) => {
+              setParcelasFilter(f ?? 'todas')
+              setTab('parcelas')
+            }}
           />
         )}
 
@@ -139,6 +143,7 @@ export function ClientArea() {
             {tab === 'parcelas' && (
               <ParcelasTab
                 calc={calc}
+                initialFilter={parcelasFilter}
                 onQuitarUltima={() => {
                   setSimMode('antecipar')
                   setTab('simular')
@@ -184,7 +189,7 @@ function InicioDashboard({
   calc: NonNullable<ReturnType<typeof getContractCalc>>
   pix: ReturnType<typeof getActivePixKey>
   onSimular: () => void
-  onVerParcelas: () => void
+  onVerParcelas: (filter?: Filter) => void
 }) {
   const { state, contract, client } = calc
   const downRows = calc.downRows
@@ -342,7 +347,7 @@ function InicioDashboard({
         <Card className="flex flex-col p-0">
           <div className="flex items-center justify-between px-5 pb-2.5 pt-4">
             <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Próximas parcelas</h3>
-            <button onClick={onVerParcelas} className="text-sm font-semibold text-brand-600 hover:underline">
+            <button onClick={() => onVerParcelas('a_vencer')} className="text-sm font-semibold text-brand-600 hover:underline">
               Ver todas
             </button>
           </div>
@@ -405,7 +410,7 @@ function InicioDashboard({
             <>
               <div className="mt-2 flex items-center justify-between border-t border-ink-100 px-5 pb-2.5 pt-5">
                 <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-400">Histórico recente</h3>
-                <button onClick={onVerParcelas} className="text-sm font-medium text-brand-600 hover:underline">
+                <button onClick={() => onVerParcelas('pagas')} className="text-sm font-medium text-brand-600 hover:underline">
                   Ver tudo
                 </button>
               </div>
@@ -1246,12 +1251,14 @@ type Filter = 'todas' | 'pagas' | 'a_vencer'
 function ParcelasTab({
   calc,
   onQuitarUltima,
+  initialFilter = 'todas',
 }: {
   calc: NonNullable<ReturnType<typeof getContractCalc>>
   onQuitarUltima: () => void
+  initialFilter?: Filter
 }) {
   const rows = [...calc.downRows, ...calc.schedule.rows]
-  const [filter, setFilter] = useState<Filter>('todas')
+  const [filter, setFilter] = useState<Filter>(initialFilter)
   const paidCount = rows.filter((r) => r.status === 'paga').length
   const openCount = rows.length - paidCount
 
