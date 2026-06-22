@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getContractCalc, getCurrentUser, getDb } from '@/lib/repo'
+import { supabase } from '@/lib/supabase'
 import { useDb } from '@/lib/store'
 import { brl } from '@/lib/format'
 import { formatDateBR } from '@/lib/dates'
@@ -134,41 +135,88 @@ export function Dashboard() {
   )
 }
 
-/** Card de notificações (vendedor): ativa o push e envia um teste para si mesmo. */
+interface NotifLog {
+  id: string
+  user_email: string
+  title: string | null
+  sent_at: string
+  delivered_at: string | null
+  clicked_at: string | null
+}
+
+/** Card de notificações (vendedor): ativa o push, envia teste e mostra o
+ *  rastreamento (enviada → entregue → clicada). */
 function AdminPushCard() {
   const email = getCurrentUser()?.email ?? ''
   const [status, setStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [log, setLog] = useState<NotifLog[]>([])
+
+  async function loadLog() {
+    if (!supabase) return
+    const { data } = await supabase
+      .from('notification_log')
+      .select('id, user_email, title, sent_at, delivered_at, clicked_at')
+      .order('sent_at', { ascending: false })
+      .limit(8)
+    setLog((data as NotifLog[]) ?? [])
+  }
+  useEffect(() => {
+    loadLog()
+  }, [])
 
   async function test() {
     setStatus(null)
     setBusy(true)
-    const r = await sendPush(
-      email,
-      'ContratoPay',
-      'Notificação de teste — tudo certo por aqui.',
-      '/admin',
-    )
+    const r = await sendPush(email, 'ContratoPay', 'Notificação de teste — tudo certo por aqui.', '/admin')
     setBusy(false)
     setStatus(r.ok ? 'Enviado. Deve chegar em instantes.' : `Falhou: ${r.error ?? 'erro'}`)
+    setTimeout(loadLog, 1500)
   }
 
+  const hora = (iso: string) =>
+    new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
   return (
-    <Card className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0">
-        <div className="font-display text-base font-semibold text-ink-900">Notificações</div>
-        <p className="text-sm text-ink-500">
-          Ative para receber avisos neste dispositivo (PWA instalada). Você pode mandar um teste
-          para si mesmo.
-        </p>
-        {status && <p className="mt-1 text-xs text-ink-500">{status}</p>}
+    <Card className="mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-display text-base font-semibold text-ink-900">Notificações</div>
+          <p className="text-sm text-ink-500">
+            Ative para receber avisos neste dispositivo (PWA instalada). Você pode mandar um teste
+            para si mesmo.
+          </p>
+          {status && <p className="mt-1 text-xs text-ink-500">{status}</p>}
+        </div>
+        <div className="flex items-center gap-2">
+          <PushButton />
+          <Button variant="secondary" onClick={test} disabled={busy || !email}>
+            {busy ? 'Enviando…' : 'Enviar teste'}
+          </Button>
+        </div>
       </div>
-      <div className="flex items-center gap-2">
-        <PushButton />
-        <Button variant="secondary" onClick={test} disabled={busy || !email}>
-          {busy ? 'Enviando…' : 'Enviar teste'}
-        </Button>
-      </div>
+
+      {log.length > 0 && (
+        <div className="mt-4 border-t border-ink-100 pt-3">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+            Últimos envios
+          </div>
+          <div className="space-y-1.5">
+            {log.map((n) => (
+              <div key={n.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="min-w-0 truncate text-ink-700">
+                  {n.title || 'Notificação'} · <span className="text-ink-400">{n.user_email}</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  <Badge tone="muted">enviada {hora(n.sent_at)}</Badge>
+                  {n.delivered_at && <Badge tone="info">entregue {hora(n.delivered_at)}</Badge>}
+                  {n.clicked_at && <Badge tone="pos">clicada {hora(n.clicked_at)}</Badge>}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </Card>
   )
 }

@@ -217,3 +217,22 @@ create policy push_self on push_subscriptions for all
 -- Admin pode ver/limpar todas (o envio em si é feito pela service role).
 drop policy if exists push_admin on push_subscriptions;
 create policy push_admin on push_subscriptions for all using (is_admin()) with check (is_admin());
+
+-- ===========================================================================
+-- Log de notificações (rastreamento de entrega/clique).
+-- ===========================================================================
+create table if not exists notification_log (
+  id uuid primary key default gen_random_uuid(),
+  user_email text not null,
+  title text,
+  body text,
+  url text,
+  created_by text,
+  sent_at timestamptz not null default now(),
+  delivered_at timestamptz,
+  clicked_at timestamptz
+);
+alter table notification_log enable row level security;
+-- Só o admin lê (escrita é via service role nas Edge Functions).
+drop policy if exists notiflog_admin on notification_log;
+create policy notiflog_admin on notification_log for all using (is_admin()) with check (is_admin());

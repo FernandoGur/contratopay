@@ -58,11 +58,28 @@ Deno.serve(async (req) => {
   if (error) return json(500, { error: error.message })
   if (!subs || subs.length === 0) return json(200, { ok: true, sent: 0, note: 'Sem assinaturas para esse e-mail.' })
 
+  // Log de rastreamento (uma linha por envio/destinatário) — guarda o id (nid)
+  // que volta nos eventos de entrega/clique.
+  const { data: logRow } = await adminApi
+    .from('notification_log')
+    .insert({
+      user_email: toEmail,
+      title: payload.title ?? 'ContratoPay',
+      body: payload.body ?? '',
+      url: payload.url ?? '/',
+      created_by: (user.email ?? '').toLowerCase(),
+    })
+    .select('id')
+    .single()
+
   webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate)
   const notif = JSON.stringify({
     title: payload.title ?? 'ContratoPay',
     body: payload.body ?? '',
     url: payload.url ?? '/',
+    nid: logRow?.id,
+    trackUrl: `${url}/functions/v1/track-notif`,
+    apikey: anon,
   })
 
   let sent = 0
