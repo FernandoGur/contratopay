@@ -150,8 +150,9 @@ export function Field({
   )
 }
 
+// text-base (16px) no mobile evita o auto-zoom do iOS ao focar; 14px no desktop.
 const inputCls =
-  'w-full rounded-[10px] border border-ink-200 bg-white px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 shadow-[0_1px_1px_rgba(16,18,28,0.03)] transition-colors focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/12'
+  'w-full rounded-[10px] border border-ink-200 bg-white px-3.5 py-2.5 text-base sm:text-sm text-ink-900 placeholder:text-ink-400 shadow-[0_1px_1px_rgba(16,18,28,0.03)] transition-colors focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/12'
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputCls} tnum ${props.className ?? ''}`} />

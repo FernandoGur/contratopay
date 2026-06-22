@@ -2001,7 +2001,7 @@ function PrevisaoTab({ calc }: { calc: NonNullable<ReturnType<typeof getContract
                 if (!Number.isNaN(v)) setForecast(Math.min(Math.max(v, 0), 100) / 100)
               }}
               placeholder="outro"
-              className="tnum w-14 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none"
+              className="tnum w-14 bg-transparent text-base text-ink-900 placeholder:text-ink-400 focus:outline-none sm:text-sm"
             />
             <span className="text-sm text-ink-500">%</span>
           </div>
