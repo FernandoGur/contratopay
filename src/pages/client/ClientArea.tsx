@@ -1087,27 +1087,27 @@ function ExtraBlock({
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={() => setMode('reduzir')}
-          className={`rounded-xl px-3 py-3 text-left text-sm font-semibold transition-all ${
+          className={`rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold leading-tight transition-all sm:text-sm ${
             mode === 'reduzir'
               ? 'bg-brand-600 text-white shadow-[var(--shadow-brand)]'
               : 'bg-white text-ink-600 ring-1 ring-ink-200'
           }`}
         >
-          Reduzir valor das parcelas
-          <span className={`mt-0.5 block text-xs font-normal ${mode === 'reduzir' ? 'text-white/80' : 'text-ink-400'}`}>
+          Reduzir parcelas
+          <span className={`mt-0.5 hidden text-xs font-normal sm:block ${mode === 'reduzir' ? 'text-white/80' : 'text-ink-400'}`}>
             pago um extra e o valor cai
           </span>
         </button>
         <button
           onClick={() => setMode('antecipar')}
-          className={`rounded-xl px-3 py-3 text-left text-sm font-semibold transition-all ${
+          className={`rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold leading-tight transition-all sm:text-sm ${
             mode === 'antecipar'
               ? 'bg-brand-600 text-white shadow-[var(--shadow-brand)]'
               : 'bg-white text-ink-600 ring-1 ring-ink-200'
           }`}
         >
-          Quitar últimas parcelas
-          <span className={`mt-0.5 block text-xs font-normal ${mode === 'antecipar' ? 'text-white/80' : 'text-ink-400'}`}>
+          Quitar últimas
+          <span className={`mt-0.5 hidden text-xs font-normal sm:block ${mode === 'antecipar' ? 'text-white/80' : 'text-ink-400'}`}>
             com desconto do IPCA futuro
           </span>
         </button>
@@ -1511,7 +1511,7 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
             <i className="h-3 w-3 rounded-[4px] bg-pos-500" /> sendo quitada
           </span>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="grid grid-cols-9 gap-1.5 sm:grid-cols-12">
           {mapRows.map((r) => {
             const isPaid = r.status === 'paga'
             const isQuit = quitSet.has(r.number)
@@ -1534,7 +1534,7 @@ function AnteciparSim({ calc }: { calc: NonNullable<ReturnType<typeof getContrac
                 disabled={!clickable}
                 onClick={clickable ? selectToHere : undefined}
                 title={`${r.type === 'entrada' ? 'Entrada' : 'Parcela'} ${r.number} · ${brl(r.value)}${clickable ? ' · quitar até aqui' : ''}`}
-                className={`flex h-7 w-7 items-center justify-center rounded-[6px] text-[10px] font-bold transition-all duration-200 ${cls} ${clickable ? 'cursor-pointer hover:ring-2 hover:ring-pos-500/40' : 'cursor-default'}`}
+                className={`flex aspect-square w-full items-center justify-center rounded-[6px] text-[10px] font-bold transition-all duration-200 ${cls} ${clickable ? 'cursor-pointer hover:ring-2 hover:ring-pos-500/40' : 'cursor-default'}`}
               >
                 {r.number}
               </button>
