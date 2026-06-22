@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { useCurrentUser } from '@/lib/store'
+import { useCurrentUser, useReady } from '@/lib/store'
+import { LogoMark } from '@/components/Logo'
 import { AdminLayout } from '@/components/AdminLayout'
 import { Login } from '@/pages/Login'
 import { Dashboard } from '@/pages/admin/Dashboard'
@@ -21,7 +22,18 @@ function Home() {
   return <Navigate to={user.role === 'admin' ? '/admin' : '/cliente'} replace />
 }
 
+function LoadingScreen() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-3">
+      <LogoMark className="h-12 w-12 animate-pulse" />
+      <p className="text-sm text-ink-400">Carregando…</p>
+    </div>
+  )
+}
+
 export default function App() {
+  const ready = useReady()
+  if (!ready) return <LoadingScreen />
   return (
     <BrowserRouter>
       <Routes>

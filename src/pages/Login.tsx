@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { login } from '@/lib/repo'
+import { useSupabase } from '@/lib/supabase'
 import { Button, Field, Input, Notice } from '@/components/ui'
 import { LogoMark, Wordmark } from '@/components/Logo'
 
@@ -7,22 +8,30 @@ export function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault()
+    setError('')
+    setLoading(true)
     try {
-      login(email, password)
+      await login(email, password)
     } catch (err) {
       setError((err as Error).message)
+    } finally {
+      setLoading(false)
     }
   }
 
-  function quick(em: string, pw: string) {
+  async function quick(em: string, pw: string) {
     setError('')
+    setLoading(true)
     try {
-      login(em, pw)
+      await login(em, pw)
     } catch (err) {
       setError((err as Error).message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -57,29 +66,35 @@ export function Login() {
               />
             </Field>
             {error && <Notice tone="warn">{error}</Notice>}
-            <Button type="submit" className="w-full">
-              Entrar
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Entrando…' : 'Entrar'}
             </Button>
           </form>
 
-          <div className="mt-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-ink-200" />
-            <span className="text-[11px] font-medium uppercase tracking-wide text-ink-400">
-              Acesso de teste
-            </span>
-            <div className="h-px flex-1 bg-ink-200" />
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <Button variant="secondary" size="sm" onClick={() => quick('admin@local', 'admin')}>
-              Vendedor
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => quick('cliente@local', 'cliente')}>
-              Cliente
-            </Button>
-          </div>
+          {!useSupabase && (
+            <>
+              <div className="mt-6 flex items-center gap-3">
+                <div className="h-px flex-1 bg-ink-200" />
+                <span className="text-[11px] font-medium uppercase tracking-wide text-ink-400">
+                  Acesso de teste
+                </span>
+                <div className="h-px flex-1 bg-ink-200" />
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <Button variant="secondary" size="sm" onClick={() => quick('admin@local', 'admin')}>
+                  Vendedor
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => quick('cliente@local', 'cliente')}>
+                  Cliente
+                </Button>
+              </div>
+            </>
+          )}
         </div>
         <p className="mt-4 text-center text-xs text-ink-400">
-          Dados salvos neste dispositivo. Versão de demonstração.
+          {useSupabase
+            ? 'Acesse com o e-mail e a senha cadastrados.'
+            : 'Dados salvos neste dispositivo. Versão de demonstração.'}
         </p>
       </div>
     </div>

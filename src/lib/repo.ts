@@ -16,6 +16,8 @@ import {
 } from './finance'
 import { todayISO } from './dates'
 import { makeSeed } from './seed'
+import { supabase, useSupabase } from './supabase'
+import { hydrate, upsertRow } from './supabaseSync'
 import type {
   Client,
   Contract,
@@ -25,6 +27,8 @@ import type {
   PixKey,
   User,
 } from './types'
+
+type Entity = 'clients' | 'contracts' | 'payments' | 'corrections' | 'pixKeys' | 'auditLogs'
 
 const DB_KEY = 'recebimentos.db.v4'
 const USER_KEY = 'recebimentos.user.v1'
@@ -39,16 +43,23 @@ const CREDENTIALS: Record<string, { password: string; userId: string }> = {
 // Store reativo
 // ---------------------------------------------------------------------------
 
+const SB_KEY = 'recebimentos.sb.v1'
+
+function emptyDb(): Database {
+  return { users: [], clients: [], contracts: [], payments: [], corrections: [], pixKeys: [], auditLogs: [] }
+}
+
 let db: Database = loadDb()
+let ready = !useSupabase // local já fica pronto; supabase fica após hidratar
+let currentUser: User | null = null
 const listeners = new Set<() => void>()
 
 /**
- * Migrações leves aplicadas a bancos já salvos no dispositivo, sem perder dados.
- * Mantém o app atualizado para quem já tem o banco persistido em versões antigas.
+ * Migrações leves no banco LOCAL já salvo no dispositivo, sem perder dados.
+ * Chaves Pix antigas usavam o placeholder "admin@local" (tratado como "não
+ * informada"); promove para o e-mail real do vendedor.
  */
 function migrate(database: Database): Database {
-  // Chaves Pix antigas usavam o placeholder "admin@local", tratado como
-  // "não informada". Promove para o e-mail real do vendedor.
   for (const k of database.pixKeys ?? []) {
     if (k.status === 'ativa' && k.pixKey.toLowerCase().endsWith('@local')) {
       k.pixKey = 'fernandogutemberggomes@gmail.com'
@@ -60,23 +71,24 @@ function migrate(database: Database): Database {
 }
 
 function loadDb(): Database {
+  const key = useSupabase ? SB_KEY : DB_KEY
   try {
-    const raw = localStorage.getItem(DB_KEY)
+    const raw = localStorage.getItem(key)
     if (raw) {
-      const migrated = migrate(JSON.parse(raw) as Database)
-      localStorage.setItem(DB_KEY, JSON.stringify(migrated))
-      return migrated
+      const parsed = JSON.parse(raw) as Database
+      return useSupabase ? parsed : migrate(parsed)
     }
   } catch {
     /* ignore */
   }
+  if (useSupabase) return emptyDb()
   const seed = makeSeed()
   localStorage.setItem(DB_KEY, JSON.stringify(seed))
   return seed
 }
 
 function persist() {
-  localStorage.setItem(DB_KEY, JSON.stringify(db))
+  localStorage.setItem(useSupabase ? SB_KEY : DB_KEY, JSON.stringify(db))
   listeners.forEach((l) => l())
 }
 
@@ -89,7 +101,12 @@ export function getDb(): Database {
   return db
 }
 
+export function isReady(): boolean {
+  return ready
+}
+
 export function resetDb() {
+  if (useSupabase) return
   db = makeSeed()
   persist()
 }
@@ -99,15 +116,26 @@ const uid = (prefix: string) =>
 
 const nowISO = () => new Date().toISOString()
 
+/** Write-through para o Supabase (fire-and-forget, registra erro). */
+function push(ent: Entity, row: unknown) {
+  if (!useSupabase) return
+  upsertRow(ent, row as Record<string, unknown>).catch((e) =>
+    console.error('[sync] upsert falhou', ent, e),
+  )
+}
+
 function log(action: string, description: string, contractId: string | null) {
-  db.auditLogs.unshift({
+  const entry = {
     id: uid('log'),
     userId: getCurrentUser()?.id ?? 'desconhecido',
     contractId,
     action,
     description,
     createdAt: nowISO(),
-  })
+  }
+  db.auditLogs.unshift(entry)
+  // Auditoria só é gravada no servidor pelo admin (RLS).
+  if (currentUser?.role === 'admin') push('auditLogs', entry)
 }
 
 // ---------------------------------------------------------------------------
@@ -115,6 +143,7 @@ function log(action: string, description: string, contractId: string | null) {
 // ---------------------------------------------------------------------------
 
 export function getCurrentUser(): User | null {
+  if (useSupabase) return currentUser
   try {
     const raw = localStorage.getItem(USER_KEY)
     if (!raw) return null
@@ -125,7 +154,17 @@ export function getCurrentUser(): User | null {
   }
 }
 
-export function login(email: string, password: string): User {
+export async function login(email: string, password: string): Promise<User> {
+  if (useSupabase) {
+    const { error } = await supabase!.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    })
+    if (error) throw new Error(authError(error.message))
+    await bootstrapSession()
+    if (!currentUser) throw new Error('Não foi possível carregar seus dados.')
+    return currentUser
+  }
   const cred = CREDENTIALS[email.trim().toLowerCase()]
   if (!cred || cred.password !== password) {
     throw new Error('E-mail ou senha inválidos.')
@@ -137,9 +176,90 @@ export function login(email: string, password: string): User {
   return user
 }
 
-export function logout() {
+export async function logout() {
+  if (useSupabase) {
+    await supabase!.auth.signOut()
+    currentUser = null
+    db = emptyDb()
+    persist()
+    return
+  }
   localStorage.removeItem(USER_KEY)
   listeners.forEach((l) => l())
+}
+
+function authError(msg: string): string {
+  if (/invalid login credentials/i.test(msg)) return 'E-mail ou senha inválidos.'
+  if (/email not confirmed/i.test(msg)) return 'E-mail ainda não confirmado.'
+  return msg
+}
+
+/** Carrega a sessão atual, hidrata o cache e resolve o usuário/perfil. */
+async function bootstrapSession() {
+  const { data } = await supabase!.auth.getSession()
+  const session = data.session
+  if (!session?.user) {
+    currentUser = null
+    ready = true
+    listeners.forEach((l) => l())
+    return
+  }
+  const email = (session.user.email ?? '').toLowerCase()
+  db = { ...emptyDb(), ...(await hydrate()) }
+
+  const { data: adminRow } = await supabase!
+    .from('app_admins')
+    .select('email')
+    .ilike('email', email)
+    .maybeSingle()
+  const isAdmin = !!adminRow
+
+  // Primeiro acesso do admin: semeia o contrato-exemplo.
+  if (isAdmin && db.contracts.length === 0) {
+    await seedSupabase()
+    db = { ...emptyDb(), ...(await hydrate()) }
+  }
+
+  if (isAdmin) {
+    currentUser = { id: session.user.id, name: 'Vendedor', email, role: 'admin' }
+  } else {
+    const client = db.clients[0]
+    currentUser = {
+      id: session.user.id,
+      name: client?.name ?? 'Cliente',
+      email,
+      role: 'cliente',
+      clientId: client?.id,
+    }
+  }
+  db.users = [currentUser]
+  ready = true
+  persist()
+}
+
+/** Semeia o contrato-exemplo no Supabase (1ª vez do admin). */
+async function seedSupabase() {
+  const seed = makeSeed()
+  for (const c of seed.clients) await upsertRow('clients', c as unknown as Record<string, unknown>)
+  for (const ct of seed.contracts) await upsertRow('contracts', ct as unknown as Record<string, unknown>)
+  for (const px of seed.pixKeys) await upsertRow('pixKeys', px as unknown as Record<string, unknown>)
+  for (const p of seed.payments) await upsertRow('payments', p as unknown as Record<string, unknown>)
+}
+
+// Bootstrap no carregamento do módulo (modo Supabase).
+if (useSupabase) {
+  bootstrapSession().catch((e) => {
+    console.error('[auth] bootstrap', e)
+    ready = true
+    listeners.forEach((l) => l())
+  })
+  supabase!.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_OUT') {
+      currentUser = null
+      db = emptyDb()
+      persist()
+    }
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -282,6 +402,7 @@ export function createClient(
     updatedAt: nowISO(),
   }
   db.clients.push(client)
+  push('clients', client)
   log('cliente_criado', `Cliente ${client.name} cadastrado.`, null)
   persist()
   return client
@@ -291,6 +412,7 @@ export function updateClient(id: string, patch: Partial<Client>) {
   const c = db.clients.find((x) => x.id === id)
   if (!c) return
   Object.assign(c, patch, { updatedAt: nowISO() })
+  push('clients', c)
   log('cliente_atualizado', `Cliente ${c.name} atualizado.`, null)
   persist()
 }
@@ -311,8 +433,9 @@ export function createContract(
     updatedAt: nowISO(),
   }
   db.contracts.push(contract)
+  push('contracts', contract)
   // Cria uma chave Pix inicial vazia para o contrato.
-  db.pixKeys.push({
+  const pix: PixKey = {
     id: uid('pix'),
     contractId: contract.id,
     pixKey: '',
@@ -322,7 +445,9 @@ export function createContract(
     activeUntil: null,
     status: 'ativa',
     createdAt: nowISO(),
-  })
+  }
+  db.pixKeys.push(pix)
+  push('pixKeys', pix)
   log('contrato_criado', `Contrato "${contract.title}" criado.`, contract.id)
   persist()
   return contract
@@ -332,6 +457,7 @@ export function updateContract(id: string, patch: Partial<Contract>) {
   const c = db.contracts.find((x) => x.id === id)
   if (!c) return
   Object.assign(c, patch, { updatedAt: nowISO() })
+  push('contracts', c)
   log('contrato_atualizado', `Contrato "${c.title}" atualizado.`, c.id)
   persist()
 }
@@ -379,6 +505,7 @@ export function recordPayment(data: {
   } else {
     db.payments.push(base)
   }
+  push('payments', base)
   const label = `${data.installmentType} #${data.installmentNumber}`
   if (data.amortizationAmount && data.amortizationAmount > 0) {
     log(
@@ -405,11 +532,13 @@ export function submitReceipt(
       p.installmentType === installmentType &&
       p.installmentNumber === installmentNumber,
   )
+  let row: Payment
   if (existing) {
     existing.receiptUrl = receiptUrl
     existing.status = 'comprovante_enviado'
+    row = existing
   } else {
-    db.payments.push({
+    row = {
       id: uid('pay'),
       contractId,
       installmentType,
@@ -424,8 +553,10 @@ export function submitReceipt(
       notes: '',
       createdBy: getCurrentUser()?.id ?? 'user-cliente',
       createdAt: nowISO(),
-    })
+    }
+    db.payments.push(row)
   }
+  push('payments', row)
   log(
     'comprovante_enviado',
     `Comprovante enviado para ${installmentType} #${installmentNumber}.`,
@@ -438,6 +569,7 @@ export function setPaymentStatus(paymentId: string, status: Payment['status']) {
   const p = db.payments.find((x) => x.id === paymentId)
   if (!p) return
   p.status = status
+  push('payments', p)
   log(
     'comprovante_revisado',
     `Pagamento ${p.installmentType} #${p.installmentNumber} → ${status}.`,
@@ -460,12 +592,14 @@ export function applyIpcaCorrection(data: {
   const existing = db.corrections.find(
     (c) => c.contractId === data.contractId && c.index === data.index,
   )
+  let row: IpcaCorrection
   if (existing) {
     existing.ipcaPercentage = data.ipcaPercentage
     existing.correctionDate = data.correctionDate
     existing.notes = data.notes ?? existing.notes
+    row = existing
   } else {
-    db.corrections.push({
+    row = {
       id: uid('ipca'),
       contractId: data.contractId,
       index: data.index,
@@ -473,8 +607,10 @@ export function applyIpcaCorrection(data: {
       ipcaPercentage: data.ipcaPercentage,
       notes: data.notes ?? '',
       createdAt: nowISO(),
-    })
+    }
+    db.corrections.push(row)
   }
+  push('corrections', row)
   log(
     'ipca_aplicado',
     `Correção IPCA #${data.index} (${(data.ipcaPercentage * 100).toFixed(2)}%) aplicada.`,
@@ -496,9 +632,10 @@ export function setPixKey(
     if (k.status === 'ativa') {
       k.status = 'inativa'
       k.activeUntil = data.activeFrom
+      push('pixKeys', k)
     }
   }
-  db.pixKeys.push({
+  const novo: PixKey = {
     id: uid('pix'),
     contractId,
     pixKey: data.pixKey,
@@ -508,7 +645,9 @@ export function setPixKey(
     activeUntil: null,
     status: 'ativa',
     createdAt: nowISO(),
-  })
+  }
+  db.pixKeys.push(novo)
+  push('pixKeys', novo)
   log('pix_atualizada', `Chave Pix atualizada: ${data.pixKey}.`, contractId)
   persist()
 }
