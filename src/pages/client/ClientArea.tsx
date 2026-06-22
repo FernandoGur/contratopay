@@ -59,27 +59,6 @@ export function ClientArea() {
   const [simMode, setSimMode] = useState<'reduzir' | 'antecipar'>('reduzir')
   const [parcelasFilter, setParcelasFilter] = useState<Filter>('todas')
 
-  // Indicador de rolagem das abas (mostra seta quando há mais abas à direita).
-  const navRef = useRef<HTMLDivElement>(null)
-  const [navScroll, setNavScroll] = useState({ left: false, right: false })
-  useEffect(() => {
-    const el = navRef.current
-    if (!el) return
-    const update = () =>
-      setNavScroll({
-        left: el.scrollLeft > 4,
-        right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
-      })
-    update()
-    el.addEventListener('scroll', update, { passive: true })
-    window.addEventListener('resize', update)
-    return () => {
-      el.removeEventListener('scroll', update)
-      window.removeEventListener('resize', update)
-    }
-  }, [])
-  const scrollNav = (dir: number) => navRef.current?.scrollBy({ left: dir * 160, behavior: 'smooth' })
-
   // Ao trocar de aba, volta ao topo (evita abrir a aba já rolada, escondendo
   // o conteúdo do topo — ex.: os botões amortizar/quitar).
   useEffect(() => {
@@ -178,54 +157,24 @@ export function ClientArea() {
             )}
           </div>
         </div>
-        {/* Abas no topo — desktop. No mobile/PWA o menu fica no rodapé. */}
-        <div className="relative hidden lg:block">
-          <div
-            ref={navRef}
-            className="mx-auto flex max-w-5xl gap-1.5 overflow-x-auto px-3 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
+        {/* Abas no topo — desktop (segmented control). No mobile o menu fica no rodapé. */}
+        <div className="mx-auto hidden max-w-5xl px-4 pb-3 lg:block">
+          <div className="inline-flex gap-1 rounded-2xl bg-ink-100 p-1">
             {CLIENT_TABS.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`shrink-0 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
+                aria-current={tab === t.id ? 'page' : undefined}
+                className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
                   tab === t.id
-                    ? 'bg-brand-600 text-white shadow-sm'
-                    : 'bg-ink-50 text-ink-600 hover:bg-ink-100'
+                    ? 'bg-white text-brand-700 shadow-sm'
+                    : 'text-ink-500 hover:text-ink-800'
                 }`}
               >
                 {t.label}
               </button>
             ))}
           </div>
-
-          {/* Esquerda: fade + seta (quando dá para voltar) */}
-          {navScroll.left && (
-            <>
-              <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-white to-transparent" />
-              <button
-                onClick={() => scrollNav(-1)}
-                aria-label="Abas anteriores"
-                className="absolute left-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white text-ink-600 shadow-md ring-1 ring-ink-200 hover:text-ink-900"
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-              </button>
-            </>
-          )}
-
-          {/* Direita: fade + seta (quando há mais abas) */}
-          {navScroll.right && (
-            <>
-              <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-white to-transparent" />
-              <button
-                onClick={() => scrollNav(1)}
-                aria-label="Mais abas"
-                className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white text-brand-600 shadow-md ring-1 ring-ink-200 hover:text-brand-700"
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
-              </button>
-            </>
-          )}
         </div>
       </header>
 
