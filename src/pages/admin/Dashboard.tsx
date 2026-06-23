@@ -7,6 +7,7 @@ import { brl } from '@/lib/format'
 import { formatDateBR } from '@/lib/dates'
 import { Badge, Button, Card, PageHeader, StatCard } from '@/components/ui'
 import { PushButton } from '@/components/PushButton'
+import { BiometricToggle } from '@/components/BiometricToggle'
 import { sendPush } from '@/lib/push'
 
 export function Dashboard() {
@@ -52,6 +53,16 @@ export function Dashboard() {
       />
 
       <AdminPushCard />
+
+      <Card className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-display text-base font-semibold text-ink-900">Acesso por biometria</div>
+          <p className="text-sm text-ink-500">
+            Bloqueie o painel e entre com Face ID ou digital nas próximas vezes (PWA instalada).
+          </p>
+        </div>
+        <BiometricToggle />
+      </Card>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Total vendido" value={brl(totalSold)} />

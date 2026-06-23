@@ -15,6 +15,7 @@ import { brl, pct } from '@/lib/format'
 import { addMonths, formatDateBR, formatMonthBR, ipcaApuracao, todayISO } from '@/lib/dates'
 import { openReceipt } from '@/lib/receipt'
 import { parseReceiptNotes } from '@/lib/requests'
+import { sendPush } from '@/lib/push'
 import {
   projectOpenCorrections,
   simulateAnticipateLast,
@@ -905,6 +906,19 @@ function ReviewReceiptModal({
     // O pedido (carrier 'amortizacao') é só um placeholder: após registrar a
     // ação real, remove-o para não ficar pendente (idempotente).
     if (isCarrier) deletePayment(payment.id)
+
+    // Avisa o cliente (push) que o comprovante foi confirmado. Best-effort:
+    // se ele não tiver notificações ativas, sendPush apenas não envia nada.
+    const clientEmail = calc.client?.email
+    if (clientEmail) {
+      const msg =
+        mode === 'amortizar'
+          ? `Comprovante confirmado — amortização de ${brl(amortAmount)} aplicada ao saldo.`
+          : mode === 'antecipar' && antSim
+            ? `Comprovante confirmado — ${antSim.count === 1 ? 'última parcela quitada' : `${antSim.count} parcelas quitadas`}.`
+            : `Comprovante confirmado — seu pagamento foi registrado (${brl(parcelaTotal)}).`
+      void sendPush(clientEmail, 'ContratoPay', msg, '/cliente')
+    }
     onClose()
   }
 
